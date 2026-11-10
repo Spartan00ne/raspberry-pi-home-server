@@ -1,0 +1,16 @@
+#!/bin/bash
+
+set -e
+
+SOURCE="/home/simeon/homepage"
+BACKUP_ROOT="/mnt/external_drive/homepage/"
+BACKUP="$BACKUP_ROOT/$(date +%Y-%m-%d_%H-%M-%S)"
+
+mkdir -p "$BACKUP"
+
+rsync -a "$SOURCE/" "$BACKUP/"
+
+# Backups älter als 30 Tage löschen
+find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d -mtime +30 -exec rm  -rf {} \;
+
+echo "Backup erstellt: $BACKUP"

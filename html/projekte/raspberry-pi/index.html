@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta name="description"
+          content="Dokumentation meines Raspberry-Pi-Webservers mit Docker, Nginx, Cloudflare Tunnel und automatischen Backups.">
+
+    <title>Raspberry Pi Webserver | Koffler Online</title>
+
+    <link rel="stylesheet" href="style.css?v=202608201704">
+</head>
+
+<body>
+
+<header class="header">
+    <nav class="nav container">
+
+        <a href="../../index.html" class="logo">
+            koffler<span>-online</span>
+        </a>
+
+        <div class="nav-links">
+            <a href="../../index.html">Startseite</a>
+            <a href="#architektur">Architektur</a>
+            <a href="#aufbau">Aufbau</a>
+            <a href="#backup">Backup</a>
+        </div>
+
+    </nav>
+</header>
+
+
+<main>
+
+    <!-- Hero -->
+
+    <section class="hero">
+
+        <div class="container">
+
+            <a href="/index.html" class="back-link">
+                ← Zurück zur Startseite
+            </a>
+
+            <p class="eyebrow">
+                PROJEKT 01 · RASPBERRY PI
+            </p>
+
+            <h1>
+                Mein eigener
+                <span>Webserver.</span>
+            </h1>
+
+            <p class="hero-description">
+                Diese Website läuft nicht auf einem klassischen Webhosting-
+                Paket, sondern auf einem Raspberry Pi bei mir zu Hause.
+                Von der Hardware über Docker und Nginx bis zur sicheren
+                Verbindung ins Internet habe ich die komplette Infrastruktur
+                selbst aufgebaut.
+            </p>
+
+            <div class="project-status">
+                <span class="status-dot"></span>
+                Projekt läuft
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- Überblick -->
+
+    <section class="section">
+
+        <div class="container">
+
+            <div class="section-heading">
+
+                <p class="section-label">
+                    ÜBERBLICK
+                </p>
+
+                <h2>
+                    Eine kleine Infrastruktur
+                    <span>für eine kleine Website.</span>
+                </h2>
+
+            </div>
+
+
+            <div class="stats">
+
+                <div class="stat">
+                    <strong>1x</strong>
+                    <span>Raspberry Pi</span>
+                </div>
+
+                <div class="stat">
+                    <strong>3x</strong>
+                    <span>Docker Container</span>
+                </div>
+
+                <div class="stat">
+                    <strong>1x</strong>
+                    <span>Domain</span>
+                </div>
+
+                <div class="stat">
+                    <strong>1x</strong>
+                    <span>Externe Festplatte</span>
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- Architektur -->
+
+    <section id="architektur" class="section architecture-section">
+
+        <div class="container">
+
+            <p class="section-label">
+                ARCHITEKTUR
+            </p>
+
+            <h2>
+                Vom Raspberry Pi
+                <span>ins Internet.</span>
+            </h2>
+
+
+            <p class="section-intro">
+                Der Raspberry Pi ist nicht direkt aus dem Internet erreichbar.
+                Stattdessen stellt Cloudflare einen Tunnel zum lokalen
+                Webserver her.
+            </p>
+
+
+            <div class="architecture">
+
+                <div class="architecture-node">
+
+                    <div class="node-icon">
+                        🌐
+                    </div>
+
+                    <strong>Internet</strong>
+
+                    <span>
+                        Besucher
+                    </span>
+
+                </div>
+
+
+                <div class="connection">
+                    <span>HTTPS</span>
+                    <div></div>
+                </div>
+
+
+                <div class="architecture-node highlight">
+
+                    <div class="node-icon">
+                        ☁️
+                    </div>
+
+                    <strong>Cloudflare</strong>
+
+                    <span>
+                        Tunnel
+                    </span>
+
+                </div>
+
+
+                <div class="connection">
+                    <span>Tunnel</span>
+                    <div></div>
+                </div>
+
+
+                <div class="architecture-node">
+
+                    <div class="node-icon">
+                        🥧
+                    </div>
+
+                    <strong>Raspberry Pi</strong>
+
+                    <span>
+                        Docker
+                    </span>
+
+                </div>
+
+
+                <div class="connection">
+                    <span>HTTP</span>
+                    <div></div>
+                </div>
+
+
+                <div class="architecture-node">
+
+                    <div class="node-icon">
+                        🐳
+                    </div>
+
+                    <strong>Nginx</strong>
+
+                    <span>
+                        Website
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- Docker -->
+
+    <section id="aufbau" class="section">
+
+        <div class="container">
+
+            <p class="section-label">
+                DOCKER
+            </p>
+
+            <h2>
+                Drei Container,
+                <span>klar getrennte Aufgaben.</span>
+            </h2>
+
+
+            <div class="components">
+
+                <article class="component-card">
+
+                    <div class="component-icon">
+                        🐳
+                    </div>
+
+                    <div>
+
+                        <p class="component-type">
+                            WEB SERVER
+                        </p>
+
+                        <h3>
+                            nginx-homepage
+                        </h3>
+
+                        <p>
+                            Der Nginx-Container liefert die statischen
+                            Dateien der Website aus. Das eigentliche
+                            Website-Verzeichnis wird vom Raspberry Pi
+                            als read-only Volume eingebunden.
+                        </p>
+
+                        <code>
+                            ./html
+                        </code>
+
+                    </div>
+
+                </article>
+
+
+                <article class="component-card">
+
+                    <div class="component-icon">
+                        ☁️
+                    </div>
+
+                    <div>
+
+                        <p class="component-type">
+                            TUNNEL
+                        </p>
+
+                        <h3>
+                            cloudflared
+                        </h3>
+
+                        <p>
+                            Der Cloudflare-Tunnel-Container stellt die
+                            Verbindung zwischen Cloudflare und dem
+                            lokalen Nginx-Container her.
+                        </p>
+
+                        <code>
+                            http://nginx-homepage:80
+                        </code>
+
+                    </div>
+
+                </article>
+
+                <article class="component-card">
+
+                    <div class="component-icon">
+                        📊
+                    </div>
+
+                    <div>
+
+                        <p class="component-type">
+                            API
+                        </p>
+
+                        <h3>
+                            dashboard-api
+                        </h3>
+
+                        <p>
+                            Die Flask-API stellt die Live-Systemdaten
+                            für das Dashboard bereit. Sie läuft mit
+                            Gunicorn auf Port 8080.
+                        </p>
+
+                        <code>
+                            /api/status
+                        </code>
+
+                    </div>
+
+                </article>
+
+            </div>
+
+
+            <div class="code-block">
+
+                <div class="code-header">
+                    docker-compose.yml
+                </div>
+
+                <pre><code>services:
+
+  nginx-homepage:
+    image: nginx:latest
+    container_name: nginx-homepage
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+
+  dashboard-api:
+    build:
+      context: ./api
+    container_name: dashboard-api
+    restart: unless-stopped
+    expose:
+      - "8080"
+
+networks:
+  web:</code></pre>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- Domain -->
+
+    <section class="section domain-section">
+
+        <div class="container">
+
+            <div class="domain-content">
+
+                <div>
+
+                    <p class="section-label">
+                        DOMAIN
+                    </p>
+
+                    <h2>
+                        koffler-online.de
+                    </h2>
+
+                    <p>
+                        Aus dem ursprünglichen Test mit einem temporären
+                        Cloudflare-Tunnel wurde schließlich eine eigene
+                        Domain.
+                    </p>
+
+                    <p>
+                        Die DNS-Verwaltung liegt bei Cloudflare und der
+                        Datenverkehr wird über den Tunnel zu meinem
+                        Raspberry Pi weitergeleitet.
+                    </p>
+
+                </div>
+
+
+                <div class="domain-card">
+
+                    <div class="domain-lock">
+                        🔒
+                    </div>
+
+                    <strong>
+                        HTTPS aktiv
+                    </strong>
+
+                    <span>
+                        Cloudflare SSL/TLS
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- Backup -->
+
+    <section id="backup" class="section backup-section">
+
+        <div class="container">
+
+            <p class="section-label">
+                BACKUP & RECOVERY
+            </p>
+
+            <h2>
+                Nicht nur sichern.
+                <span>Auch wiederherstellen können.</span>
+            </h2>
+
+            <p class="section-intro">
+                Die Website-Konfiguration und die benötigten Dateien
+                werden regelmäßig auf einer externen Festplatte
+                gespeichert.
+            </p>
+
+
+            <div class="backup-flow">
+
+                <div class="backup-step">
+
+                    <span>01</span>
+
+                    <strong>
+                        Homepage
+                    </strong>
+
+                    <p>
+                        Website, Docker-Konfiguration,
+                        Nginx-Konfiguration und Scripts
+                    </p>
+
+                </div>
+
+
+                <div class="backup-arrow">
+                    →
+                </div>
+
+
+                <div class="backup-step">
+
+                    <span>02</span>
+
+                    <strong>
+                        Backup-Script
+                    </strong>
+
+                    <p>
+                        Erstellt versionierte Backups
+                        mit Zeitstempel
+                    </p>
+
+                </div>
+
+
+                <div class="backup-arrow">
+                    →
+                </div>
+
+
+                <div class="backup-step">
+
+                    <span>03</span>
+
+                    <strong>
+                        Externe HDD
+                    </strong>
+
+                    <p>
+                        Zusätzliche Kopie außerhalb
+                        der SD-Karte
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <div class="recovery-note">
+
+                <span class="check">
+                    ✓
+                </span>
+
+                <div>
+
+                    <strong>
+                        Wiederherstellung getestet
+                    </strong>
+
+                    <p>
+                        Ein Backup wurde nicht nur erstellt,
+                        sondern anschließend auch erfolgreich
+                        wiederhergestellt.
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- Was ich gelernt habe -->
+
+    <section class="section">
+
+        <div class="container narrow">
+
+            <p class="section-label">
+                RÜCKBLICK
+            </p>
+
+            <h2>
+                Vom einfachen HTML
+                <span>zur eigenen Infrastruktur.</span>
+            </h2>
+
+            <div class="timeline">
+
+                <div class="timeline-item">
+
+                    <span class="timeline-number">
+                        01
+                    </span>
+
+                    <div>
+
+                        <h3>
+                            Die erste Homepage
+                        </h3>
+
+                        <p>
+                            Angefangen hat alles mit einer simplen
+                            HTML-Datei und einem Nginx-Container.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="timeline-item">
+
+                    <span class="timeline-number">
+                        02
+                    </span>
+
+                    <div>
+
+                        <h3>
+                            Zugriff aus dem Internet
+                        </h3>
+
+                        <p>
+                            Mit Cloudflare Tunnel wurde die lokale
+                            Website öffentlich erreichbar, ohne
+                            den Webserver direkt ins Internet zu stellen.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="timeline-item">
+
+                    <span class="timeline-number">
+                        03
+                    </span>
+
+                    <div>
+
+                        <h3>
+                            Eigene Domain
+                        </h3>
+
+                        <p>
+                            Mit koffler-online.de bekam das Projekt
+                            schließlich eine eigene Adresse.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="timeline-item">
+
+                    <span class="timeline-number">
+                        04
+                    </span>
+
+                    <div>
+
+                        <h3>
+                            Backup & Recovery
+                        </h3>
+
+                        <p>
+                            Zum Schluss wurde die Infrastruktur
+                            gegen Datenverlust abgesichert und
+                            die Wiederherstellung getestet.
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- Abschluss -->
+
+    <section class="cta">
+
+        <div class="container">
+
+            <p class="section-label">
+                NÄCHSTER SCHRITT
+            </p>
+
+            <h2>
+                Das Projekt ist noch nicht fertig.
+            </h2>
+
+            <p>
+                Genau das macht es interessant.
+            </p>
+
+            <a href="../../index.html" class="button">
+                ← Zur Startseite
+            </a>
+
+        </div>
+
+    </section>
+
+</main>
+
+
+<footer class="footer">
+
+    <div class="container footer-content">
+
+        <div>
+
+            <strong>
+                koffler-online.de
+            </strong>
+
+            <p>
+                Persönliche Homepage & Technikprojekte
+            </p>
+
+        </div>
+
+        <p>
+            © 2026 Koffler Online
+        </p>
+
+    </div>
+
+</footer>
+
+</body>
+</html>

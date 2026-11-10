@@ -1,0 +1,20 @@
+#!/bin/bash
+
+set -e
+
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+OUTPUT="../runtime/status.json"
+
+NGINX_STATUS=$(sudo docker inspect --format '{{.State.Status}}' nginx-homepage 2>/dev/null | tr -d '\r\n' || echo "unknown")
+CLOUDFLARED_STATUS=$(sudo docker inspect --format '{{.State.Status}}' cloudflared 2>/dev/null | tr -d '\r\n' || echo "unknown")
+DASHBOARD_API_STATUS=$(sudo docker inspect --format '{{.State.Status}}' dashboard-api 2>/dev/null | tr -d '\r\n' || echo "unknown")
+
+cat > "$OUTPUT" <<EOF
+{
+  "docker": {
+    "nginx-homepage": "$NGINX_STATUS",
+    "cloudflared": "$CLOUDFLARED_STATUS",
+    "dashboard-api": "$DASHBOARD_API_STATUS"
+  }
+}
+EOF

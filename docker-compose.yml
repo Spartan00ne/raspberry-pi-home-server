@@ -1,0 +1,40 @@
+services:
+  nginx-homepage:
+    image: nginx:latest
+    container_name: nginx-homepage
+    restart: unless-stopped
+    expose:
+      - "80"
+    volumes:
+      - ./html:/usr/share/nginx/html:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - web
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+    networks:
+      - web
+
+  dashboard-api:
+    build:
+      context: ./api
+    container_name: dashboard-api
+    restart: unless-stopped
+    expose:
+      - "8080"
+    networks:
+      web:
+        aliases:
+          - dashboard-api
+    volumes:
+      - /sys/class/thermal:/sys/class/thermal:ro
+      - /:/host:ro
+      - /mnt/external_drive:/mnt/external_drive:ro
+      - ./runtime:/runtime:ro
+
+networks:
+  web:

@@ -1,0 +1,7 @@
+{
+  "docker": {
+    "nginx-homepage": "running",
+    "cloudflared": "running",
+    "dashboard-api": "running"
+  }
+}

@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="description"
+        content="Live Dashboard des Raspberry Pi"
+    >
+
+    <title>Raspberry Pi Dashboard</title>
+
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+
+<body>
+
+<header>
+
+    <div class="nav">
+
+        <a href="../" class="logo">
+            koffler<span>-online</span>
+        </a>
+
+        <a href="../" class="back">
+            ← Homepage
+        </a>
+
+    </div>
+
+</header>
+
+
+<main>
+
+    <section class="hero">
+
+        <p class="label">
+            LIVE SYSTEM MONITOR
+        </p>
+
+        <h1>
+            Raspberry Pi
+            <span>Dashboard</span>
+        </h1>
+
+        <p class="description">
+            Aktueller Zustand des Webservers,
+            der Docker-Container und des
+            Backup-Systems.
+        </p>
+
+        <div class="live">
+
+            <span></span>
+
+            LIVE
+
+        </div>
+
+    </section>
+
+
+    <section class="dashboard">
+
+
+        <!-- CPU -->
+
+        <article class="card">
+
+            <div class="card-top">
+
+                <span class="icon">⚙️</span>
+
+                <span class="title">
+                    CPU
+                </span>
+
+            </div>
+
+            <div class="value">
+
+                <strong id="cpu">
+                    --
+                </strong>
+
+                <span>%</span>
+
+            </div>
+
+            <div class="progress">
+
+                <div id="cpu-bar"></div>
+
+            </div>
+
+            <p>
+                Auslastung
+            </p>
+
+        </article>
+
+
+        <!-- RAM -->
+
+        <article class="card">
+
+            <div class="card-top">
+
+                <span class="icon">🧠</span>
+
+                <span class="title">
+                    Arbeitsspeicher
+                </span>
+
+            </div>
+
+            <div class="value">
+
+                <strong id="ram">
+                    --
+                </strong>
+
+                <span>%</span>
+
+            </div>
+
+            <div class="progress">
+
+                <div id="ram-bar"></div>
+
+            </div>
+
+            <p id="ram-detail">
+                --
+            </p>
+
+        </article>
+
+
+        <!-- Temperatur -->
+
+        <article class="card">
+
+            <div class="card-top">
+
+                <span class="icon">🌡️</span>
+
+                <span class="title">
+                    Temperatur
+                </span>
+
+            </div>
+
+            <div class="value">
+
+                <strong id="temperature">
+                    --
+                </strong>
+
+                <span>°C</span>
+
+            </div>
+
+            <p>
+                CPU Temperatur
+            </p>
+
+        </article>
+
+
+        <!-- Uptime -->
+
+        <article class="card">
+
+            <div class="card-top">
+
+                <span class="icon">⏱️</span>
+
+                <span class="title">
+                    Uptime
+                </span>
+
+            </div>
+
+            <div class="value uptime">
+
+                <strong id="uptime">
+                    --
+                </strong>
+
+            </div>
+
+            <p>
+                Systemlaufzeit
+            </p>
+
+        </article>
+
+
+        <!-- Root Disk -->
+
+        <article class="card wide">
+
+            <div class="card-top">
+
+                <span class="icon">💾</span>
+
+                <span class="title">
+                    System-Speicher
+                </span>
+
+            </div>
+
+            <div class="disk-info">
+
+                <strong id="root-percent">
+                    --
+                </strong>
+
+                <span>
+                    belegt
+                </span>
+
+            </div>
+
+            <div class="progress">
+
+                <div id="root-bar"></div>
+
+            </div>
+
+            <p id="root-detail">
+                --
+            </p>
+
+        </article>
+
+
+        <!-- External drive -->
+
+        <article class="card wide">
+
+            <div class="card-top">
+
+                <span class="icon">🗄️</span>
+
+                <span class="title">
+                    Externe Festplatte
+                </span>
+
+            </div>
+
+            <div class="disk-info">
+
+                <strong id="external-drive-percent">
+                    --
+                </strong>
+
+                <span>
+                    belegt
+                </span>
+
+            </div>
+
+            <div class="progress">
+
+                <div id="external-drive-bar"></div>
+
+            </div>
+
+            <p id="external-drive-detail">
+                --
+            </p>
+
+        </article>
+
+
+    </section>
+
+
+    <!-- Docker -->
+
+    <section class="section">
+
+        <p class="label">
+            DOCKER
+        </p>
+
+        <h2>
+            Container
+        </h2>
+
+
+        <div class="containers">
+
+
+            <div class="container-card">
+
+                <div class="container-status" id="nginx-status">
+                    ?
+                </div>
+
+                <div>
+
+                    <strong>
+                        nginx-homepage
+                    </strong>
+
+                    <span>
+                        Webserver
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <div class="container-card">
+
+                <div class="container-status" id="cloudflare-status">
+                    ?
+                </div>
+
+                <div>
+
+                    <strong>
+                        cloudflared
+                    </strong>
+
+                    <span>
+                        Cloudflare Tunnel
+                    </span>
+
+                </div>
+
+            </div>
+
+
+        </div>
+
+    </section>
+
+
+    <footer>
+
+        <span>
+            Letzte Aktualisierung:
+        </span>
+
+        <strong id="updated">
+            --
+        </strong>
+
+    </footer>
+
+</main>
+
+
+<script src="app.js"></script>
+
+</body>
+
+</html>

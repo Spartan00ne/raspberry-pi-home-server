@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Koffler Online – persönliche Homepage über Technik, Raspberry Pi und eigene Projekte.">
+    <title>Koffler Online</title>
+    <link rel="stylesheet" href="style.css?v=202608201704">
+</head>
+<body>
+
+    <header class="site-header">
+        <div class="container nav">
+            <a href="#top" class="logo">koffler<span>-online</span></a>
+
+            <nav class="nav-links" aria-label="Hauptnavigation">
+                <a href="#ueber-mich">Über mich</a>
+                <a href="#projekte">Projekte</a>
+                <a href="#technik">Technik</a>
+            </nav>
+        </div>
+    </header>
+
+    <main id="top">
+
+        <section class="hero section-spacing">
+            <div class="container hero-grid">
+                <div class="hero-copy">
+                    <p class="eyebrow">TECHNIK • LERNEN • BAUEN</p>
+                    <h1>Technik verstehen.<br><span>Selbst machen.</span></h1>
+                    <p class="hero-text">
+                        Meine Homepage ist ein Raum für Experimente, kleine Projekte und alles,
+                        was ich selbst ausprobiert und aufgebaut habe – von Raspberry Pi bis Cloudflare.
+                    </p>
+
+                    <div class="hero-actions">
+                        <a href="#projekte" class="button primary">Projekte ansehen</a>
+                        <a href="#ueber-mich" class="button secondary">Mehr über mich</a>
+                    </div>
+                </div>
+
+                <div class="terminal-card" aria-label="Server status">
+                    <div class="terminal-bar">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+
+                    <div class="terminal-content">
+                        <p><span class="prompt">$</span> hostname</p>
+                        <p>raspberry-pi</p>
+
+                        <p><span class="prompt">$</span> docker ps</p>
+                        <p>nginx-homepage</p>
+                        <p>cloudflared</p>
+                        <p>dashboard-api</p>
+
+                        <p><span class="prompt">$</span> status</p>
+                        <p class="status-online">● online</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="ueber-mich" class="section">
+            <div class="container narrow">
+                <p class="section-label">ÜBER MICH</p>
+                <h2>Neugierig auf Technik<br><span>und wie Dinge funktionieren.</span></h2>
+
+                <div class="text-blocks">
+                    <p>
+                        Diese Website ist meine kleine Spielwiese für Technik, Prototypen und selbst
+                        umgesetzte Ideen. Ich teste Dinge aus, dokumentiere sie und baue dabei Schritt
+                        für Schritt an meiner eigenen Infrastruktur.
+                    </p>
+                    <p>
+                        Aktuell lebt diese Seite auf einem Raspberry Pi. Nginx liefert die Inhalte aus,
+                        Docker kapselt die Dienste und Cloudflare stellt die sichere Verbindung ins Internet her.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <section id="projekte" class="section projects-section">
+            <div class="container">
+                <p class="section-label">PROJEKTE</p>
+                <h2>Ein Blick auf meine aktuellen Ideen und Builds.</h2>
+
+                <div class="projects-grid">
+                    <a href="projekte/raspberry-pi/index.html" class="project-card">
+                        <div class="project-number">01</div>
+                        <div class="project-icon">🥧</div>
+                        <h3>Raspberry Pi Webserver</h3>
+                        <p>
+                            Ein eigener kleiner Server, der diese Webseite ausliefert – komplett zu Hause,
+                            mit Docker, Nginx und Cloudflare Tunnel.
+                        </p>
+                        <div class="tags">
+                            <span>Raspberry Pi</span>
+                            <span>Linux</span>
+                        </div>
+                    </a>
+
+                    <a href="projekte/raspberry-pi/index.html" class="project-card">
+                        <div class="project-number">02</div>
+                        <div class="project-icon">🐳</div>
+                        <h3>Docker & Nginx</h3>
+                        <p>
+                            Containerisierte Infrastruktur für die Website mit sauberer Trennung von
+                            Webserver, Netzwerk und externem Zugriff.
+                        </p>
+                        <div class="tags">
+                            <span>Docker</span>
+                            <span>Nginx</span>
+                            <span>Compose</span>
+                        </div>
+                    </a>
+
+                    <a href="projekte/raspberry-pi/index.html" class="project-card">
+                        <div class="project-number">03</div>
+                        <div class="project-icon">☁️</div>
+                        <h3>Cloudflare Tunnel</h3>
+                        <p>
+                            Sicherer Zugang aus dem Internet, ohne den Raspberry Pi direkt zu exponieren.
+                        </p>
+                        <div class="tags">
+                            <span>Cloudflare</span>
+                            <span>Tunnel</span>
+                            <span>HTTPS</span>
+                        </div>
+                    </a>
+
+                    <a href="projekte/raspberry-pi/index.html" class="project-card">
+                        <div class="project-number">04</div>
+                        <div class="project-icon">🌐</div>
+                        <h3>Eigene Domain</h3>
+                        <p>
+                            Aus einem einfachen Test wurde schließlich eine eigene Domain: koffler-online.de.
+                        </p>
+                        <div class="tags">
+                            <span>DNS</span>
+                            <span>Domain</span>
+                            <span>Cloudflare</span>
+                        </div>
+                    </a>
+
+                    <a href="projekte/raspberry-pi/index.html" class="project-card">
+                        <div class="project-number">05</div>
+                        <div class="project-icon">💾</div>
+                        <h3>Backups & Recovery</h3>
+                        <p>
+                            Regelmäßige Sicherung der Konfigurationen und Daten – damit auch ein Neustart
+                            keine Katastrophe ist.
+                        </p>
+                        <div class="tags">
+                            <span>Backup</span>
+                            <span>rsync</span>
+                            <span>Recovery</span>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <section id="technik" class="section">
+            <div class="container">
+                <p class="section-label">TECHNIK</p>
+                <h2>Der Stack hinter dieser Website.</h2>
+
+                <div class="tech-layout">
+                    <div class="tech-copy">
+                        <p>
+                            Hinter der scheinbar einfachen Website steckt eine kleine, aber funktionierende
+                            Infrastruktur. Ich kombiniere Raspberry Pi, Linux, Docker und Nginx zu einem
+                            überschaubaren, selbst betriebenen System.
+                        </p>
+                        <p>
+                            Es geht nicht nur um das Endergebnis, sondern auch darum, die einzelnen Bausteine
+                            zu verstehen und sinnvoll zu verbinden.
+                        </p>
+                    </div>
+
+                    <div class="tech-stack">
+                        <div class="tech-item"><strong>Hardware</strong><span>Raspberry Pi</span></div>
+                        <div class="tech-item"><strong>OS</strong><span>Linux</span></div>
+                        <div class="tech-item"><strong>Container</strong><span>Docker</span></div>
+                        <div class="tech-item"><strong>Webserver</strong><span>Nginx</span></div>
+                        <div class="tech-item"><strong>Netzwerk</strong><span>Cloudflare Tunnel</span></div>
+                        <div class="tech-item"><strong>Domain</strong><span>koffler-online.de</span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="cta">
+            <div class="container cta-inner">
+                <p class="section-label">WIR SIND NOCH NICHT FERTIG</p>
+                <h2>Die Seite wächst mit neuen Ideen.</h2>
+                <p>Mehr Projekte, Experimente und technische Einblicke folgen.</p>
+                <a href="#top" class="button primary">Nach oben</a>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="site-footer">
+        <div class="container footer-content">
+            <div>
+                <strong>koffler-online.de</strong>
+                <p>Persönliche Homepage & Technikprojekte</p>
+            </div>
+            <p>© 2026 Koffler Online</p>
+        </div>
+    </footer>
+
+</body>
+</html>
