@@ -249,6 +249,13 @@ async function updateDashboard() {
             ]
         );
 
+        setContainerStatus(
+            "dashboard-api-status",
+            data.docker[
+                "dashboard-api"
+            ]
+        );
+
 
         /* Timestamp */
 

@@ -36,6 +36,9 @@ erfolgt über Nginx unter `/api/`.
 
 Das Dashboard fragt `/api/status` regelmäßig ab. Der API-Container liest
 Systeminformationen des Hosts über die in Compose eingebundenen Verzeichnisse.
+Nginx weist Browser an, statische Dateien automatisch zu revalidieren und die
+Live-API nicht zwischenzuspeichern. Dadurch müssen bei Änderungen keine
+Versionsnummern in HTML-Dateien manuell angepasst werden.
 
 ## Status und Backups
 
