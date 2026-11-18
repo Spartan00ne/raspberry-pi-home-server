@@ -1,0 +1,19 @@
+# Hält Abhängigkeiten aktuell: Dependabot öffnet Pull Requests, die CI prüft sie,
+# und nach dem Merge rollt der Pi sie automatisch aus.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: {interval: weekly}
+
+  - package-ecosystem: docker
+    directory: /api
+    schedule: {interval: weekly}
+
+  - package-ecosystem: pip
+    directory: /api
+    schedule: {interval: weekly}
+
+  - package-ecosystem: docker-compose
+    directories: [/, /monitoring]
+    schedule: {interval: weekly}

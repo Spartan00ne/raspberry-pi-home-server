@@ -1,0 +1,165 @@
+# CI für den Raspberry-Pi-Homeserver.
+#
+# Jeder Push und jeder Pull Request wird geprüft. Auf main wird zusätzlich das
+# ARM64-Image der Dashboard-API gebaut, getestet und nach GHCR veröffentlicht.
+# Ausgerollt wird nicht von hier aus: Der Pi holt sich neue Stände selbst
+# (scripts/deploy), sobald dieser Workflow für den Commit erfolgreich war.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/spartan00ne/raspberry-pi-home-server/dashboard-api
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: ShellCheck (scripts/)
+        run: shellcheck scripts/*
+
+      - name: Ruff (Python-API)
+        run: pipx run ruff==0.17.5 check --no-cache api
+
+      - name: Hadolint (Dockerfile)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: api/Dockerfile
+
+      - name: Grafana-Dashboards sind gültiges JSON
+        run: |
+          for f in monitoring/grafana/dashboards/*.json; do
+            python3 -m json.tool "$f" > /dev/null && echo "ok: $f"
+          done
+
+  validate:
+    name: Konfiguration prüfen
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      # Die Tools laufen in genau den Image-Versionen, die auch auf dem Pi laufen.
+      # Quelle ist die jeweilige docker-compose.yml, damit nichts auseinanderläuft.
+      - name: Image-Versionen aus Compose lesen
+        run: |
+          img() { awk -v n="$1:" '$1 == "image:" && index($2, n) == 1 { print $2; exit }' "$2"; }
+          {
+            echo "NGINX_IMAGE=$(img nginx docker-compose.yml)"
+            echo "PROMETHEUS_IMAGE=$(img prom/prometheus monitoring/docker-compose.yml)"
+            echo "ALERTMANAGER_IMAGE=$(img prom/alertmanager monitoring/docker-compose.yml)"
+            echo "BLACKBOX_IMAGE=$(img prom/blackbox-exporter monitoring/docker-compose.yml)"
+          } | tee -a "$GITHUB_ENV"
+
+      - name: Docker Compose
+        env:
+          TUNNEL_TOKEN: ci-dummy
+        run: |
+          docker compose config --quiet
+          # Secrets existieren nur auf dem Pi; für die Prüfung reichen leere Dateien.
+          mkdir -p monitoring/secrets
+          touch monitoring/secrets/{telegram_bot_token,telegram_chat_id,grafana_admin_password}
+          docker compose -f monitoring/docker-compose.yml config --quiet
+
+      - name: Prometheus-Konfiguration und Alarmregeln
+        run: |
+          docker run --rm -v "$PWD/monitoring/prometheus:/etc/prometheus:ro" \
+            --entrypoint promtool "$PROMETHEUS_IMAGE" check config /etc/prometheus/prometheus.yml
+
+      - name: Unit-Tests der Alarmregeln
+        run: |
+          docker run --rm -v "$PWD/monitoring/prometheus:/etc/prometheus:ro" \
+            --entrypoint promtool "$PROMETHEUS_IMAGE" test rules /etc/prometheus/tests/alerts_test.yml
+
+      - name: Alertmanager-Konfiguration
+        run: |
+          docker run --rm -v "$PWD/monitoring/alertmanager:/etc/alertmanager:ro" \
+            --entrypoint amtool "$ALERTMANAGER_IMAGE" check-config /etc/alertmanager/alertmanager.yml
+
+      - name: Blackbox-Exporter-Konfiguration
+        run: |
+          docker run --rm -v "$PWD/monitoring/blackbox:/etc/blackbox:ro" \
+            "$BLACKBOX_IMAGE" --config.file=/etc/blackbox/blackbox.yml --config.check
+
+      - name: Nginx-Konfiguration
+        run: |
+          # Upstream-Namen gibt es nur im Docker-Netz auf dem Pi.
+          docker run --rm --add-host dashboard-api:127.0.0.1 \
+            -v "$PWD/nginx:/etc/nginx/conf.d:ro" "$NGINX_IMAGE" nginx -t
+
+  image:
+    name: Image bauen (arm64)
+    needs: [lint, validate]
+    # Nativer ARM64-Runner: gleiche Architektur wie der Pi, kein QEMU nötig.
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    env:
+      PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Tags und Labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=sha,format=long
+            type=raw,value=main,enable={{is_default_branch}}
+
+      - name: Bauen
+        uses: docker/build-push-action@v6
+        with:
+          context: api
+          platforms: linux/arm64
+          load: true
+          tags: dashboard-api:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke-Test
+        run: |
+          docker run -d --name api -p 8080:8080 dashboard-api:test
+          curl -fsS --retry 15 --retry-delay 1 --retry-all-errors http://localhost:8080/api/health
+          curl -fsS http://localhost:8080/api/status | python3 -m json.tool > /dev/null
+          echo "API antwortet."
+
+      - name: Logs bei Fehler
+        if: failure()
+        run: docker logs api || true
+
+      - name: Bei GHCR anmelden
+        if: env.PUSH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Veröffentlichen
+        if: env.PUSH == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: api
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha

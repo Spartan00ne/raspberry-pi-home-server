@@ -133,3 +133,20 @@ groups:
         annotations:
           summary: "TLS-Zertifikat für {{ $labels.instance }} läuft in {{ $value | printf \"%.0f\" }} Tagen ab"
           description: "Cloudflare verlängert normalerweise automatisch. Bitte im Cloudflare-Dashboard prüfen."
+
+  - name: deployment
+    rules:
+      - alert: DeploymentFehlgeschlagen
+        expr: homepage_deploy_success == 0
+        labels: {severity: warning}
+        annotations:
+          summary: "Deployment von Commit {{ $labels.commit }} fehlgeschlagen"
+          description: "Der Pi läuft weiter mit dem vorherigen Stand. Logs: journalctl -u homepage-deploy"
+
+      - alert: DeploymentVeraltet
+        expr: time() - homepage_deploy_last_run_timestamp_seconds > 900 or absent(homepage_deploy_last_run_timestamp_seconds)
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Automatisches Deployment läuft nicht"
+          description: "homepage-deploy.timer hat seit über 15 Minuten nicht geprüft. Prüfen mit: systemctl status homepage-deploy.timer"

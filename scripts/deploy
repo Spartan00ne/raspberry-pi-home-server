@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+# Pull-basiertes Deployment (GitOps): Der Pi holt sich neue Stände selbst.
+#
+# Ablauf bei jedem Lauf (homepage-deploy.timer, alle 2 Minuten):
+#   1. git fetch; gibt es keinen neuen Commit auf main, ist nichts zu tun.
+#   2. Nur ausrollen, wenn der CI-Workflow für genau diesen Commit grün ist.
+#   3. Image des Commits aus GHCR ziehen, erst danach den Code umstellen.
+#   4. Geänderte Teile neu starten bzw. neu laden (Compose, nginx, Prometheus ...).
+#   5. Health-Check. Schlägt er fehl: zurück auf den vorherigen Stand.
+#
+# Der Pi braucht dafür keine eingehende Verbindung und GitHub keinen Zugang
+# zum Pi. Ergebnis und ausgerollter Commit landen als Metrik im node_exporter
+# (Alarm "DeploymentFehlgeschlagen").
+#
+# Aufruf: scripts/deploy [--force]   (--force: auch einen bereits
+#                                     fehlgeschlagenen Commit erneut versuchen)
+set -euo pipefail
+
+REPO_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+BRANCH=main
+GITHUB_REPO=Spartan00ne/raspberry-pi-home-server
+WORKFLOW=ci.yml
+IMAGE=ghcr.io/spartan00ne/raspberry-pi-home-server/dashboard-api
+STATE_DIR="${STATE_DIR:-$HOME/.local/state/homepage-deploy}"
+METRICS_DIR="${METRICS_DIR:-/run/pi-metrics}"
+LOCK_FILE="$STATE_DIR/lock"
+
+log() { echo "[deploy] $*"; }
+
+# Docker läuft nur mit sudo (Benutzer ist bewusst nicht in der docker-Gruppe).
+dc() { sudo env API_TAG="$API_TAG" docker compose "$@"; }
+
+state_get() { cat "$STATE_DIR/$1" 2>/dev/null || true; }
+state_set() { printf '%s\n' "$2" > "$STATE_DIR/$1"; }
+
+# Metriken für den Textfile-Collector des node_exporters (liegt im RAM).
+write_metrics() {
+  local success="$1" commit="$2"
+  [[ -d "$METRICS_DIR" && -w "$METRICS_DIR" ]] || { log "WARN: $METRICS_DIR fehlt, keine Metriken"; return 0; }
+  local tmp last_success
+  tmp="$(mktemp "$METRICS_DIR/.deploy.prom.XXXXXX")"
+  last_success="$(state_get last_success_ts)"
+  {
+    echo "# HELP homepage_deploy_success 1, wenn der letzte Deploy-Lauf erfolgreich war."
+    echo "# TYPE homepage_deploy_success gauge"
+    echo "homepage_deploy_success{commit=\"$commit\"} $success"
+    echo "# HELP homepage_deploy_last_run_timestamp_seconds Zeitpunkt des letzten Deploy-Laufs."
+    echo "# TYPE homepage_deploy_last_run_timestamp_seconds gauge"
+    echo "homepage_deploy_last_run_timestamp_seconds $(date +%s)"
+    if [[ -n "$last_success" ]]; then
+      echo "# HELP homepage_deploy_last_success_timestamp_seconds Zeitpunkt des letzten erfolgreichen Deployments."
+      echo "# TYPE homepage_deploy_last_success_timestamp_seconds gauge"
+      echo "homepage_deploy_last_success_timestamp_seconds $last_success"
+    fi
+    echo "# HELP homepage_deploy_info Aktuell ausgerollter Commit."
+    echo "# TYPE homepage_deploy_info gauge"
+    echo "homepage_deploy_info{commit=\"$(git rev-parse --short HEAD)\"} 1"
+  } > "$tmp"
+  chmod 644 "$tmp"
+  mv "$tmp" "$METRICS_DIR/deploy.prom"
+}
+
+# Ergebnis des CI-Workflows für einen Commit: success | failure | pending | none ...
+ci_status() {
+  curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/repos/$GITHUB_REPO/actions/workflows/$WORKFLOW/runs?head_sha=$1&event=push&per_page=1" |
+    python3 -c '
+import json, sys
+runs = json.load(sys.stdin).get("workflow_runs", [])
+if not runs:
+    print("none")
+elif runs[0]["status"] != "completed":
+    print("pending")
+else:
+    print(runs[0]["conclusion"] or "unknown")
+'
+}
+
+healthy() {
+
+  for _ in $(seq 1 30); do
+    if sudo docker exec nginx-homepage curl -fsS -o /dev/null http://localhost/ &&
+       sudo docker exec nginx-homepage curl -fsS -o /dev/null http://localhost/api/health; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+# Stellt Code und Container auf einen Commit um. $2: Commit, von dem aus
+# umgestellt wird (bestimmt, was neu geladen werden muss).
+# Hinweis: In "if apply ..." gilt set -e nicht, daher prüft jeder Schritt
+# seinen Fehler selbst (|| return 1).
+apply() {
+  local target="$1" from="$2" changed
+  changed="$(git diff --name-only "$from" "$target")" || return 1
+  touched() { grep -qE "$1" <<< "$changed"; }
+
+  git reset --quiet --hard "$target" || return 1
+
+  dc up -d --no-build --remove-orphans || return 1
+
+  if touched '^nginx/'; then
+    log "nginx-Konfiguration geändert: prüfen und neu laden"
+    sudo docker exec nginx-homepage nginx -t || return 1
+    sudo docker exec nginx-homepage nginx -s reload || return 1
+  fi
+
+  if touched '^monitoring/'; then
+    log "Monitoring geändert"
+    (cd monitoring && dc up -d --remove-orphans) || return 1
+    if touched '^monitoring/prometheus/'; then
+      curl -fsS -X POST http://127.0.0.1:9090/-/reload || return 1
+    fi
+    if touched '^monitoring/alertmanager/'; then
+      curl -fsS -X POST http://127.0.0.1:9093/-/reload || return 1
+    fi
+    if touched '^monitoring/blackbox/'; then
+      (cd monitoring && dc restart blackbox-exporter) || return 1
+    fi
+    if touched '^monitoring/grafana/provisioning/'; then
+      (cd monitoring && dc restart grafana) || return 1
+    fi
+  fi
+
+  if touched '(^|/)systemd/'; then
+    log "WARN: systemd-Units geändert, bitte manuell installieren (siehe docs/ci-cd.md)"
+  fi
+  return 0
+}
+
+main() {
+  local force=false
+  [[ "${1:-}" == "--force" ]] && force=true
+
+  mkdir -p "$STATE_DIR"
+  exec 9> "$LOCK_FILE"
+  flock -n 9 || { log "läuft bereits"; exit 0; }
+
+  cd "$REPO_DIR"
+  git fetch --quiet origin "$BRANCH"
+
+  local current target
+  current="$(git rev-parse HEAD)"
+  target="$(git rev-parse "origin/$BRANCH")"
+  API_TAG="$(state_get api_tag)"
+  API_TAG="${API_TAG:-main}"
+
+  if [[ "$current" == "$target" ]]; then
+    write_metrics 1 "${target:0:7}"
+    exit 0
+  fi
+
+  if [[ "$(state_get failed_commit)" == "$target" && "$force" == false ]]; then
+    log "Commit ${target:0:7} ist bereits fehlgeschlagen, warte auf neuen Commit (oder --force)"
+    write_metrics 0 "${target:0:7}"
+    exit 0
+  fi
+
+  if ! git merge-base --is-ancestor "$current" "$target"; then
+    log "FEHLER: lokaler Stand ${current:0:7} ist nicht in origin/$BRANCH enthalten (lokale Commits?)"
+    write_metrics 0 "${target:0:7}"
+    exit 1
+  fi
+
+  if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
+    log "FEHLER: lokale Änderungen im Repo, Deployment abgebrochen:"
+    git status --short --untracked-files=no
+    write_metrics 0 "${target:0:7}"
+    exit 1
+  fi
+
+  local ci
+  ci="$(ci_status "$target")" || ci=unreachable
+  case "$ci" in
+    success) ;;
+    pending|none|unreachable)
+      log "CI-Status für ${target:0:7}: $ci, nächster Versuch beim nächsten Lauf"
+      exit 0 ;;
+    *)
+      log "CI für ${target:0:7} nicht erfolgreich ($ci), wird nicht ausgerollt"
+      state_set failed_commit "$target"
+      write_metrics 0 "${target:0:7}"
+      exit 1 ;;
+  esac
+
+  log "Rolle ${current:0:7} -> ${target:0:7} aus"
+  git log --oneline "$current..$target"
+
+  # Image zuerst holen: Scheitert das, bleibt alles beim Alten.
+  local old_tag="$API_TAG"
+  API_TAG="sha-$target"
+  if ! sudo docker pull --quiet "$IMAGE:$API_TAG"; then
+    log "FEHLER: Image $IMAGE:$API_TAG nicht abrufbar"
+    state_set failed_commit "$target"
+    write_metrics 0 "${target:0:7}"
+    exit 1
+  fi
+
+  if apply "$target" "$current" && healthy; then
+    state_set api_tag "$API_TAG"
+    state_set last_success_ts "$(date +%s)"
+    rm -f "$STATE_DIR/failed_commit"
+    log "Erfolgreich: ${target:0:7} läuft"
+    write_metrics 1 "${target:0:7}"
+    exit 0
+  fi
+
+  log "FEHLER: Deployment von ${target:0:7} fehlgeschlagen, Rollback auf ${current:0:7}"
+  state_set failed_commit "$target"
+  API_TAG="$old_tag"
+  if apply "$current" "$target" && healthy; then
+    log "Rollback erfolgreich"
+  else
+    log "KRITISCH: auch der Rollback ist fehlgeschlagen, bitte manuell prüfen"
+  fi
+  write_metrics 0 "${target:0:7}"
+  exit 1
+}
+
+# Alles steckt in main(): Bash liest so das ganze Skript, bevor es läuft.
+# Das ist wichtig, weil das Deployment diese Datei selbst aktualisieren kann.
+main "$@"

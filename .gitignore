@@ -8,3 +8,7 @@ backup/
 
 # Monitoring: Secrets (Telegram, Grafana-Passwort)
 monitoring/secrets/
+
+# Wird von homepage-status.timer laufend neu geschrieben
+runtime/status.json
+.ruff_cache/

@@ -1,0 +1,11 @@
+[Unit]
+Description=Homepage: neuen Stand aus GitHub ausrollen (pull-basiertes Deployment)
+Documentation=file:///home/simeon/homepage/docs/ci-cd.md
+After=network-online.target docker.service pi-metrics.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=simeon
+ExecStart=/home/simeon/homepage/scripts/deploy
+TimeoutStartSec=15min

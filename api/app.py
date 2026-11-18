@@ -1,7 +1,8 @@
-from flask import Flask, jsonify
-import psutil
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
+import psutil
+from flask import Flask, jsonify
 
 app = Flask(__name__)
 
@@ -11,8 +12,7 @@ STATUS_FILE = "/runtime/status.json"
 def get_temperature():
     try:
         with open(
-            "/sys/class/thermal/thermal_zone0/temp",
-            "r"
+            "/sys/class/thermal/thermal_zone0/temp"
         ) as file:
             return round(
                 int(file.read().strip()) / 1000,
@@ -39,7 +39,7 @@ def get_disk(path):
 
 def get_docker_status():
     try:
-        with open(STATUS_FILE, "r") as file:
+        with open(STATUS_FILE) as file:
             data = json.load(file)
 
         return data.get("docker", {})
@@ -55,7 +55,7 @@ def status():
 
     return jsonify({
         "timestamp": datetime.now(
-            timezone.utc
+            UTC
         ).isoformat(),
 
         "system": {

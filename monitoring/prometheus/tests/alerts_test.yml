@@ -1,0 +1,102 @@
+# Unit-Tests für die Alarmregeln, ausgeführt in der CI mit:
+#   promtool test rules monitoring/prometheus/tests/alerts_test.yml
+# Jeder Test spielt künstliche Messwerte ab und prüft, ob (und wann) ein Alarm
+# mit genau diesen Labels und Texten auslöst.
+rule_files:
+  - ../rules/alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  # Temperatur: erst nach 5 Minuten über 75 °C, nicht schon beim ersten Wert.
+  - interval: 1m
+    input_series:
+      - series: 'node_thermal_zone_temp{type="cpu-thermal", zone="0"}'
+        values: '76x10'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: PiTemperaturHoch
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: PiTemperaturHoch
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: "CPU-Temperatur hoch: 76.0 °C"
+              description: "Die CPU ist seit 5 Minuten über 75 °C. Ab 80 °C drosselt der Pi."
+      - eval_time: 6m
+        alertname: PiTemperaturKritisch
+        exp_alerts: []
+
+  # Website: fällt nach 2 Minuten aus, Alarm 3 Minuten später.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{instance="https://koffler-online.de/", job="blackbox"}'
+        values: '1 1 0x6'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: WebsiteOffline
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: WebsiteOffline
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              instance: https://koffler-online.de/
+              job: blackbox
+            exp_annotations:
+              summary: "https://koffler-online.de/ ist nicht erreichbar"
+              description: "Die Prüfung über das Internet schlägt seit 3 Minuten fehl. Tunnel und nginx prüfen."
+
+  # Container: dashboard-api fehlt, alle anderen laufen.
+  - interval: 1m
+    input_series:
+      - {series: 'container_last_seen{job="cadvisor", name="nginx-homepage"}', values: '1x5'}
+      - {series: 'container_last_seen{job="cadvisor", name="cloudflared"}', values: '1x5'}
+      - {series: 'container_last_seen{job="cadvisor", name="prometheus"}', values: '1x5'}
+      - {series: 'container_last_seen{job="cadvisor", name="alertmanager"}', values: '1x5'}
+      - {series: 'container_last_seen{job="cadvisor", name="grafana"}', values: '1x5'}
+      - {series: 'container_last_seen{job="cadvisor", name="node-exporter"}', values: '1x5'}
+      - {series: 'container_last_seen{job="cadvisor", name="blackbox-exporter"}', values: '1x5'}
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: ContainerAusgefallen
+        exp_alerts:
+          - exp_labels: {severity: critical, name: dashboard-api}
+            exp_annotations:
+              summary: "Container dashboard-api läuft nicht"
+              description: "Prüfen mit: docker ps -a und docker logs dashboard-api"
+
+  # Deployment: ein fehlgeschlagener Lauf alarmiert sofort.
+  - interval: 1m
+    input_series:
+      - series: 'homepage_deploy_success{commit="abc1234", instance="raspberry-pi", job="node"}'
+        values: '1 1 0 0'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DeploymentFehlgeschlagen
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: DeploymentFehlgeschlagen
+        exp_alerts:
+          - exp_labels: {severity: warning, commit: abc1234, instance: raspberry-pi, job: node}
+            exp_annotations:
+              summary: "Deployment von Commit abc1234 fehlgeschlagen"
+              description: "Der Pi läuft weiter mit dem vorherigen Stand. Logs: journalctl -u homepage-deploy"
+
+  # Deployment: Der Timer meldet sich nicht mehr (letzter Lauf bei t=0).
+  - interval: 1m
+    input_series:
+      - series: 'homepage_deploy_last_run_timestamp_seconds{instance="raspberry-pi", job="node"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: DeploymentVeraltet
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: DeploymentVeraltet
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: raspberry-pi, job: node}
+            exp_annotations:
+              summary: "Automatisches Deployment läuft nicht"
+              description: "homepage-deploy.timer hat seit über 15 Minuten nicht geprüft. Prüfen mit: systemctl status homepage-deploy.timer"

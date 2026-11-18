@@ -1,5 +1,7 @@
 # Koffler Online
 
+[![CI](https://github.com/Spartan00ne/raspberry-pi-home-server/actions/workflows/ci.yml/badge.svg)](https://github.com/Spartan00ne/raspberry-pi-home-server/actions/workflows/ci.yml)
+
 Persönliche Homepage und Technikprojekte auf einem Raspberry Pi.
 
 ## Aktueller Aufbau
@@ -56,7 +58,7 @@ Container und die Erreichbarkeit der Website von außen. Probleme wie hohe
 Temperatur, Unterspannung, volle Platten, ausgefallene Container oder eine nicht
 erreichbare Website meldet er per Telegram.
 
-- **Prometheus** sammelt die Metriken und wertet 15 Alarmregeln aus.
+- **Prometheus** sammelt die Metriken und wertet 17 Alarmregeln aus (mit Unit-Tests).
 - **Grafana** zeigt das Dashboard, öffentlich nur lesend.
 - **Alertmanager** schickt die Alarme an Telegram.
 - **node-exporter**, **cAdvisor** und **blackbox-exporter** liefern Host-,
@@ -66,6 +68,22 @@ erreichbare Website meldet er per Telegram.
 
 Aufbau, Alarme, Sicherheitsentscheidungen und Einrichtung stehen in
 [`monitoring/README.md`](monitoring/README.md).
+
+## CI/CD
+
+Jede Änderung wird von GitHub Actions geprüft: Lint (ShellCheck, Ruff,
+Hadolint), alle Konfigurationen (Compose, Prometheus inkl. Unit-Tests der
+Alarme, Alertmanager, nginx) und ein Smoke-Test des API-Images. Das Image wird
+auf einem ARM64-Runner gebaut und in der GitHub Container Registry
+veröffentlicht.
+
+Ausgerollt wird pull-basiert (GitOps): Ein systemd-Timer auf dem Pi prüft alle
+2 Minuten, ob es auf `main` einen neuen Commit mit grüner CI gibt, rollt ihn
+aus, prüft die Website und setzt sich bei einem Fehler selbst zurück. Der Pi
+braucht dafür keine offenen Ports, und GitHub hat keinen Zugang zum Pi.
+Dependabot hält Images und Pakete aktuell.
+
+Details und Begründung: [`docs/ci-cd.md`](docs/ci-cd.md)
 
 ## Status und Backups
 
@@ -83,7 +101,7 @@ Voraussetzungen:
 - eine `.env`-Datei mit `TUNNEL_TOKEN`
 - die externe Festplatte unter `/mnt/external_drive`
 
-Starten oder aktualisieren:
+Aktualisiert wird automatisch per [CI/CD](docs/ci-cd.md). Manuell starten:
 
 ```bash
 docker compose up -d --build
@@ -119,6 +137,5 @@ Die einzelnen Schritte, Prüfungen und wie man sie rückgängig macht, stehen in
 
 ## Nächste Erweiterungen
 
-- CI/CD mit GitHub Actions (Images bauen, testen und auf den Pi ausliefern)
 - Server-Einrichtung als Code mit Ansible
 - den Raspberry Pi zusätzlich als NAS im lokalen Netzwerk nutzen

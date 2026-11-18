@@ -54,6 +54,16 @@ Definiert in [`prometheus/rules/alerts.yml`](prometheus/rules/alerts.yml):
 | WebsiteOffline | Website aus dem Internet nicht erreichbar (3 min) | critical |
 | WebsiteLangsam | Antwortzeit > 3 s (10 min) | warning |
 | ZertifikatLaeuftAb | TLS-Zertifikat < 14 Tage gültig | warning |
+| DeploymentFehlgeschlagen | Ein Commit konnte nicht ausgerollt werden ([CI/CD](../docs/ci-cd.md)) | warning |
+| DeploymentVeraltet | `homepage-deploy.timer` prüft nicht mehr (15 min) | warning |
+
+Die Regeln haben Unit-Tests ([`prometheus/tests/alerts_test.yml`](prometheus/tests/alerts_test.yml)),
+die bei jedem Push in der CI laufen:
+
+```bash
+docker run --rm -v "$PWD/prometheus:/etc/prometheus:ro" --entrypoint promtool \
+  prom/prometheus:v3.15.1 test rules /etc/prometheus/tests/alerts_test.yml
+```
 
 Regeln im Alertmanager ([`alertmanager/alertmanager.yml`](alertmanager/alertmanager.yml)):
 Eine kritische Meldung unterdrückt die Warnung zum selben Problem, und fällt
