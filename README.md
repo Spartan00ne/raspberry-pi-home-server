@@ -123,10 +123,27 @@ curl http://localhost/api/health
 Das Tunnel-Token liegt ausschließlich in `.env`; diese Datei wird durch
 [`.gitignore`](.gitignore) nicht versioniert.
 
+## Infrastructure as Code
+
+Der ganze Server ist mit **Ansible** beschrieben ([`ansible/`](ansible/)).
+Ein frisch geflashter Pi wird mit einem Playbook wieder zum laufenden Server:
+Härtung, Docker, Anwendung, Secrets und Timer.
+
+- 7 Rollen (`base`, `ssh`, `firewall`, `updates`, `boot`, `docker`, `app`)
+- Secrets verschlüsselt im Ansible Vault, die CI kennt das Passwort nie
+- Schutz vor Aussperren: Schlüsselprüfung per `assert`, sshd-Validierung,
+  Rettungs-Timer für die Firewall
+- CI: `ansible-lint` (Profil production) und zwei Läufe in einem
+  Debian-Container. Der zweite muss `changed=0` melden (Idempotenz).
+- Gegen den laufenden Pi meldet `--check` `changed=0`: Code und Server stimmen
+  überein.
+
+Details, Entscheidungen und Neuaufbau: [`docs/ansible.md`](docs/ansible.md)
+
 ## Server-Härtung
 
-Die einzelnen Schritte, Prüfungen und wie man sie rückgängig macht, stehen in
-[`docs/server-setup.md`](docs/server-setup.md).
+Was gehärtet ist und warum, steht in [`docs/server-setup.md`](docs/server-setup.md).
+Umgesetzt wird es mit Ansible.
 
 - SSH nur mit Schlüssel, kein Passwort-Login und kein Root-Login
 - Firewall (ufw): eingehend alles gesperrt außer SSH und VNC aus dem Heimnetz
@@ -137,5 +154,5 @@ Die einzelnen Schritte, Prüfungen und wie man sie rückgängig macht, stehen in
 
 ## Nächste Erweiterungen
 
-- Server-Einrichtung als Code mit Ansible
+- Drift-Erkennung: regelmäßiger `--check`-Lauf mit Alarm bei Abweichungen
 - den Raspberry Pi zusätzlich als NAS im lokalen Netzwerk nutzen
