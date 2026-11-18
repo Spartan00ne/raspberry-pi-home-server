@@ -150,3 +150,37 @@ groups:
         annotations:
           summary: "Automatisches Deployment läuft nicht"
           description: "homepage-deploy.timer hat seit über 15 Minuten nicht geprüft. Prüfen mit: systemctl status homepage-deploy.timer"
+
+  - name: backup
+    rules:
+      - alert: BackupFehlgeschlagen
+        expr: homepage_backup_success == 0
+        labels: {severity: warning}
+        annotations:
+          summary: "Backup fehlgeschlagen"
+          description: "Der letzte Lauf von homepage-backup ist fehlgeschlagen. Logs: journalctl -u homepage-backup"
+
+      # absent(): Nach einem Neuaufbau meldet sich der Alarm, bis das erste
+      # Backup gelaufen ist.
+      - alert: BackupVeraltet
+        expr: time() - homepage_backup_last_success_timestamp_seconds > 26 * 3600 or absent(homepage_backup_last_success_timestamp_seconds)
+        for: 1h
+        labels: {severity: warning}
+        annotations:
+          summary: "Seit über 26 Stunden kein erfolgreiches Backup"
+          description: "Prüfen mit: systemctl list-timers homepage-backup.timer und journalctl -u homepage-backup (docs/backup.md)"
+
+      - alert: RestoreTestFehlgeschlagen
+        expr: homepage_restore_test_success == 0
+        labels: {severity: warning}
+        annotations:
+          summary: "Restore-Test fehlgeschlagen"
+          description: "Das neueste Backup ließ sich nicht prüfen oder zurückspielen. Logs: journalctl -u homepage-restore-test"
+
+      - alert: RestoreTestVeraltet
+        expr: time() - homepage_restore_test_last_success_timestamp_seconds > 8 * 86400 or absent(homepage_restore_test_last_success_timestamp_seconds)
+        for: 1h
+        labels: {severity: warning}
+        annotations:
+          summary: "Seit über 8 Tagen kein erfolgreicher Restore-Test"
+          description: "Prüfen mit: systemctl list-timers homepage-restore-test.timer und journalctl -u homepage-restore-test (docs/backup.md)"

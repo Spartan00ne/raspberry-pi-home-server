@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# Spielt einen restic-Snapshot zurück. Ein gemeinsamer Restore-Pfad für den
+# wöchentlichen Restore-Test und den Ernstfall (restore.yml), siehe docs/backup.md.
+#
+#   sudo scripts/restore <snapshot|latest> <verzeichnis>
+#       Nur zurückspielen nach <verzeichnis>/grafana, /prometheus und
+#       /alertmanager, mit Besitzern und Rechten wie im Original.
+#       Das nutzt der Restore-Test.
+#
+#   sudo scripts/restore <snapshot|latest> --live [--force]
+#       Zurückspielen und die Docker-Volumes damit ersetzen. Enthalten die
+#       Volumes schon Daten, bricht das Skript ohne --force ab (Exit 3). Mit
+#       --force wird der aktuelle Stand vorher gesichert (restic-Tag
+#       pre-restore), der Restore lässt sich also rückgängig machen.
+#
+# "latest" ist der neueste reguläre Snapshot (Tag auto), nie ein pre-restore.
+# Es wird immer erst vollständig in ein Arbeitsverzeichnis zurückgespielt und
+# danach in die Volumes kopiert: Bricht restic ab, bleiben die Live-Daten
+# unberührt.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+LOG_TAG=restore
+# shellcheck source=scripts/backup-lib
+source "$SCRIPT_DIR/backup-lib"
+
+usage() {
+  echo "Aufruf: $0 <snapshot|latest> <verzeichnis>" >&2
+  echo "        $0 <snapshot|latest> --live [--force]" >&2
+  exit 2
+}
+
+# restore_to_dir <snapshot> <ziel>
+restore_to_dir() {
+  local snapshot="$1" target="$2" filter=() info id time name
+  if [[ -d "$target" && -n "$(ls -A "$target")" ]]; then
+    die "Ziel ist nicht leer: $target"
+  fi
+
+  # Snapshot einmal auflösen, damit alle Volumes aus demselben Stand kommen.
+  [[ "$snapshot" == latest ]] && filter=(--tag auto)
+  info="$(restic snapshots --host "$BACKUP_HOST" "${filter[@]}" --json "$snapshot" | python3 -c '
+import datetime, json, re, sys
+snaps = json.load(sys.stdin)
+if not snaps:
+    sys.exit("Snapshot nicht gefunden")
+s = snaps[-1]
+# restic liefert Nanosekunden; Python kann höchstens Mikrosekunden.
+t = datetime.datetime.fromisoformat(re.sub(r"\.\d+", "", s["time"]))
+print(s["id"], int(t.timestamp()))
+')"
+  read -r id time <<< "$info"
+
+  mkdir -p "$target"
+  for name in "${!BACKUP_VOLUMES[@]}"; do
+    log "Spiele $name aus Snapshot ${id:0:8} zurück"
+    # Den Ordner über _data zurückspielen, nicht _data selbst: restic setzt
+    # Besitzer und Rechte nur für Einträge unterhalb des Zielordners. So
+    # behält _data seine (z. B. Grafana: uid 472), sonst wäre es root:root.
+    restic restore "$id:$(dirname "$(volume_path "${BACKUP_VOLUMES[$name]}")")" --target "$target/.$name"
+    mv "$target/.$name/_data" "$target/$name"
+    rmdir "$target/.$name"
+  done
+  echo "$id $time" > "$target/.snapshot"
+}
+
+WORKDIR=""
+cleanup_live() {
+  start_containers
+  if [[ -n "$WORKDIR" ]]; then rm -rf "$WORKDIR"; fi
+}
+
+# restore_live <snapshot> <force 0|1>
+restore_live() {
+  local snapshot="$1" force="$2" name dir nonempty=()
+  for name in "${!BACKUP_VOLUMES[@]}"; do
+    dir="$(volume_path "${BACKUP_VOLUMES[$name]}")"
+    [[ -d "$dir" ]] || die "Volume fehlt: $dir. Erst den Monitoring-Stack einmal starten (cd monitoring && docker compose up -d)."
+    if [[ -n "$(ls -A "$dir")" ]]; then nonempty+=("$name"); fi
+  done
+  if (( ${#nonempty[@]} )) && [[ "$force" != 1 ]]; then
+    echo "[$LOG_TAG] ABBRUCH: Die Volumes enthalten bereits Daten (${nonempty[*]})." >&2
+    echo "[$LOG_TAG] Zum Überschreiben --force angeben; der aktuelle Stand wird dann vorher gesichert." >&2
+    exit 3
+  fi
+
+  trap cleanup_live EXIT
+  WORKDIR="$(mktemp -d /var/tmp/restore.XXXXXX)"
+  restore_to_dir "$snapshot" "$WORKDIR/data"
+
+  if (( ${#nonempty[@]} )); then
+    log "Sichere den aktuellen Stand vorher (Tag pre-restore)"
+    "$SCRIPT_DIR/backup" pre-restore
+  fi
+
+  stop_containers
+  for name in "${!BACKUP_VOLUMES[@]}"; do
+    log "Ersetze Volume ${BACKUP_VOLUMES[$name]}"
+    rsync -a --delete --numeric-ids "$WORKDIR/data/$name/" "$(volume_path "${BACKUP_VOLUMES[$name]}")/"
+  done
+  start_containers
+  log "Wiederhergestellt aus Snapshot $(cut -c1-8 "$WORKDIR/data/.snapshot")."
+}
+
+(( $# >= 2 )) || usage
+snapshot="$1"
+take_lock
+require_repo
+case "$2" in
+  --live)
+    case "${3:-}" in
+      "") restore_live "$snapshot" 0 ;;
+      --force) restore_live "$snapshot" 1 ;;
+      *) usage ;;
+    esac
+    ;;
+  -*) usage ;;
+  *) restore_to_dir "$snapshot" "$2" ;;
+esac

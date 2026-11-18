@@ -56,6 +56,10 @@ Definiert in [`prometheus/rules/alerts.yml`](prometheus/rules/alerts.yml):
 | ZertifikatLaeuftAb | TLS-Zertifikat < 14 Tage gültig | warning |
 | DeploymentFehlgeschlagen | Ein Commit konnte nicht ausgerollt werden ([CI/CD](../docs/ci-cd.md)) | warning |
 | DeploymentVeraltet | `homepage-deploy.timer` prüft nicht mehr (15 min) | warning |
+| BackupFehlgeschlagen | Letztes Backup fehlgeschlagen ([Backup](../docs/backup.md)) | warning |
+| BackupVeraltet | Seit über 26 h kein erfolgreiches Backup | warning |
+| RestoreTestFehlgeschlagen | Letzter Restore-Test fehlgeschlagen | warning |
+| RestoreTestVeraltet | Seit über 8 Tagen kein erfolgreicher Restore-Test | warning |
 
 Die Regeln haben Unit-Tests ([`prometheus/tests/alerts_test.yml`](prometheus/tests/alerts_test.yml)),
 die bei jedem Push in der CI laufen:

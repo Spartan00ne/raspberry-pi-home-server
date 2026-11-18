@@ -1,8 +1,8 @@
 [Unit]
-Description=Tägliches Homepage-Backup
+Description=Tägliches Backup des Zustands um 03:00
 
 [Timer]
-OnCalendar=*-*-* 3:00:00
+OnCalendar=*-*-* 03:00:00
 Persistent=true
 
 [Install]

@@ -24,3 +24,5 @@
       tags: [docker]
     - role: app
       tags: [app]
+    - role: backup
+      tags: [backup]

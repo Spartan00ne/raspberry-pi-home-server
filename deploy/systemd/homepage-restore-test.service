@@ -1,0 +1,10 @@
+[Unit]
+Description=Homepage: neuestes Backup testweise zurückspielen und prüfen
+Documentation=file:///home/simeon/homepage/docs/backup.md
+After=docker.service homepage-backup.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/simeon/homepage/scripts/restore-test
+TimeoutStartSec=1h
+Nice=10

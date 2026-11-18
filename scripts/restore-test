@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# Wöchentlicher Restore-Test (homepage-restore-test.timer, sonntags 04:00).
+# Ein Backup zählt erst, wenn es sich zurückspielen lässt. Der Test nutzt
+# denselben Restore-Pfad wie der Ernstfall (scripts/restore) und prüft:
+#
+#   1. restic check --read-data: Das Repository ist vollständig und unbeschädigt.
+#   2. Der neueste Snapshot ist höchstens 26 Stunden alt.
+#   3. Grafana: SQLite-Integrität, mindestens ein Benutzer, und eine
+#      Grafana-Instanz startet mit den Daten und meldet "database: ok".
+#   4. Prometheus startet mit der zurückgespielten TSDB und liefert Messwerte
+#      von kurz vor dem Backup.
+#
+# Die Test-Container laufen mit denselben Images wie live, aber ohne Netzwerk
+# (--network none), und werden danach mitsamt Daten entfernt. Das Ergebnis
+# landet als Metrik im node_exporter (Alarme RestoreTestFehlgeschlagen und
+# RestoreTestVeraltet).
+#
+# Aufruf von Hand: sudo systemctl start homepage-restore-test.service
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+LOG_TAG=restore-test
+# shellcheck source=scripts/backup-lib
+source "$SCRIPT_DIR/backup-lib"
+
+MAX_AGE=$(( 26 * 3600 ))
+START="$(date +%s)"
+WORKDIR=""
+TEST_CONTAINERS=(restore-test-grafana restore-test-prometheus)
+
+finish() {
+  local rc=$?
+  docker rm -f "${TEST_CONTAINERS[@]}" > /dev/null 2>&1 || true
+  if [[ -n "$WORKDIR" ]]; then rm -rf "$WORKDIR"; fi
+  write_metrics restore-test homepage_restore_test "$(( rc == 0 ? 1 : 0 ))" "$(( $(date +%s) - START ))" || true
+  if (( rc == 0 )); then
+    log "Restore-Test erfolgreich."
+  else
+    log "Restore-Test FEHLGESCHLAGEN (Exit $rc)."
+  fi
+  exit "$rc"
+}
+trap finish EXIT
+
+# wait_ready <container> <url> <sekunden>: wartet, bis die URL im Container antwortet.
+wait_ready() {
+  local container="$1" url="$2" timeout="$3" waited=0
+  until docker exec "$container" wget -qO /dev/null "$url" 2> /dev/null; do
+    if (( waited >= timeout )); then
+      docker logs --tail 30 "$container" >&2 || true
+      die "$container antwortet nach $timeout s nicht auf $url"
+    fi
+    sleep 5
+    waited=$(( waited + 5 ))
+  done
+}
+
+take_lock
+require_repo
+
+log "Prüfe das Repository (restic check --read-data)"
+restic check --read-data
+
+WORKDIR="$(mktemp -d /var/tmp/restore-test.XXXXXX)"
+"$SCRIPT_DIR/restore" latest "$WORKDIR/data"
+read -r snap_id snap_time < "$WORKDIR/data/.snapshot"
+age=$(( $(date +%s) - snap_time ))
+log "Snapshot ${snap_id:0:8} ist $(( age / 3600 )) h alt"
+(( age <= MAX_AGE )) || die "Der neueste Snapshot ist älter als 26 Stunden"
+
+log "Prüfe die Grafana-Datenbank"
+python3 - "$WORKDIR/data/grafana/grafana.db" <<'EOF'
+import sqlite3, sys
+db = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
+result = db.execute("PRAGMA integrity_check").fetchone()[0]
+if result != "ok":
+    sys.exit(f"integrity_check: {result}")
+users = db.execute("SELECT count(*) FROM user").fetchone()[0]
+if users < 1:
+    sys.exit("Keine Benutzer in der Grafana-DB")
+print(f"[restore-test] grafana.db ok, {users} Benutzer")
+EOF
+
+grafana_image="$(docker inspect -f '{{.Config.Image}}' grafana)" || die "Container grafana nicht gefunden"
+prometheus_image="$(docker inspect -f '{{.Config.Image}}' prometheus)" || die "Container prometheus nicht gefunden"
+
+log "Starte Test-Container ($grafana_image, $prometheus_image)"
+docker run -d --name restore-test-grafana --network none \
+  -v "$WORKDIR/data/grafana:/var/lib/grafana" \
+  -e GF_ANALYTICS_REPORTING_ENABLED=false \
+  -e GF_ANALYTICS_CHECK_FOR_UPDATES=false \
+  -e GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false \
+  -e GF_PLUGINS_PREINSTALL_DISABLED=true \
+  "$grafana_image" > /dev/null
+docker run -d --name restore-test-prometheus --network none \
+  -v "$WORKDIR/data/prometheus:/prometheus" \
+  "$prometheus_image" \
+  --config.file=/etc/prometheus/prometheus.yml \
+  --storage.tsdb.path=/prometheus \
+  --storage.tsdb.retention.time=30d > /dev/null
+
+wait_ready restore-test-grafana http://localhost:3000/api/health 180
+health="$(docker exec restore-test-grafana wget -qO- http://localhost:3000/api/health)"
+grep -Eq '"database": *"ok"' <<< "$health" || die "Grafana meldet: $health"
+log "Grafana startet mit den Daten: database ok"
+
+wait_ready restore-test-prometheus http://localhost:9090/-/ready 180
+# Messwerte des node_exporters von 2 Minuten vor dem Backup
+query='count(up%7Bjob%3D%22node%22%7D)'
+result="$(docker exec restore-test-prometheus wget -qO- \
+  "http://localhost:9090/api/v1/query?query=$query&time=$(( snap_time - 120 ))")"
+python3 -c '
+import json, sys
+r = json.loads(sys.argv[1])["data"]["result"]
+if not r or float(r[0]["value"][1]) < 1:
+    sys.exit("Prometheus hat keine Messwerte von kurz vor dem Backup")
+print("[restore-test] Prometheus liefert Messwerte von kurz vor dem Backup")
+' "$result"

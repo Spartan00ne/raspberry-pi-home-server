@@ -100,3 +100,89 @@ tests:
             exp_annotations:
               summary: "Automatisches Deployment läuft nicht"
               description: "homepage-deploy.timer hat seit über 15 Minuten nicht geprüft. Prüfen mit: systemctl status homepage-deploy.timer"
+
+  # Backup: ein fehlgeschlagener Lauf alarmiert sofort.
+  - interval: 1m
+    input_series:
+      - series: 'homepage_backup_success{instance="raspberry-pi", job="node"}'
+        values: '1 1 0 0'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: BackupFehlgeschlagen
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: BackupFehlgeschlagen
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: raspberry-pi, job: node}
+            exp_annotations:
+              summary: "Backup fehlgeschlagen"
+              description: "Der letzte Lauf von homepage-backup ist fehlgeschlagen. Logs: journalctl -u homepage-backup"
+
+  # Backup: letzter Erfolg bei t=0. Nach 26 h wird es kritisch, nach einer
+  # weiteren Stunde kommt der Alarm.
+  - interval: 1m
+    input_series:
+      - series: 'homepage_backup_last_success_timestamp_seconds{instance="raspberry-pi", job="node"}'
+        values: '0x1700'
+    alert_rule_test:
+      - eval_time: 26h
+        alertname: BackupVeraltet
+        exp_alerts: []
+      - eval_time: 27h30m
+        alertname: BackupVeraltet
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: raspberry-pi, job: node}
+            exp_annotations:
+              summary: "Seit über 26 Stunden kein erfolgreiches Backup"
+              description: "Prüfen mit: systemctl list-timers homepage-backup.timer und journalctl -u homepage-backup (docs/backup.md)"
+
+  # Backup: Es gab noch nie ein erfolgreiches Backup (z. B. nach einem Neuaufbau).
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="raspberry-pi", job="node"}'
+        values: '1x70'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: BackupVeraltet
+        exp_alerts: []
+      - eval_time: 61m
+        alertname: BackupVeraltet
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: "Seit über 26 Stunden kein erfolgreiches Backup"
+              description: "Prüfen mit: systemctl list-timers homepage-backup.timer und journalctl -u homepage-backup (docs/backup.md)"
+
+  # Restore-Test: ein fehlgeschlagener Lauf alarmiert sofort.
+  - interval: 1m
+    input_series:
+      - series: 'homepage_restore_test_success{instance="raspberry-pi", job="node"}'
+        values: '1 0 0'
+    alert_rule_test:
+      - eval_time: 0m
+        alertname: RestoreTestFehlgeschlagen
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: RestoreTestFehlgeschlagen
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: raspberry-pi, job: node}
+            exp_annotations:
+              summary: "Restore-Test fehlgeschlagen"
+              description: "Das neueste Backup ließ sich nicht prüfen oder zurückspielen. Logs: journalctl -u homepage-restore-test"
+
+  # Restore-Test: letzter Erfolg bei t=0, Alarm erst nach über 8 Tagen.
+  - interval: 1m
+    input_series:
+      - series: 'homepage_restore_test_last_success_timestamp_seconds{instance="raspberry-pi", job="node"}'
+        values: '0x11700'
+    alert_rule_test:
+      - eval_time: 8d
+        alertname: RestoreTestVeraltet
+        exp_alerts: []
+      - eval_time: 193h30m
+        alertname: RestoreTestVeraltet
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: raspberry-pi, job: node}
+            exp_annotations:
+              summary: "Seit über 8 Tagen kein erfolgreicher Restore-Test"
+              description: "Prüfen mit: systemctl list-timers homepage-restore-test.timer und journalctl -u homepage-restore-test (docs/backup.md)"
