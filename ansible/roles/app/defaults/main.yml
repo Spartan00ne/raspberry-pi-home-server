@@ -1,0 +1,31 @@
+app_user: "{{ admin_user }}"
+app_home: "/home/{{ app_user }}"
+app_dir: "{{ app_home }}/homepage"
+app_repo_url: git@github.com:Spartan00ne/raspberry-pi-home-server.git
+app_branch: main
+app_deploy_key: "{{ app_home }}/.ssh/github_deploy_homepage"
+app_state_dir: "{{ app_home }}/.local/state/homepage-deploy"
+
+# Offizieller ed25519-Host-Key von GitHub
+# (https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints)
+app_github_host_key: github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+
+# systemd-Units aus dem Repo (Pfade relativ zur Repo-Wurzel)
+app_systemd_units:
+  - deploy/systemd/homepage-deploy.service
+  - deploy/systemd/homepage-deploy.timer
+  - deploy/systemd/homepage-backup.service
+  - deploy/systemd/homepage-backup.timer
+  - deploy/systemd/homepage-status.service
+  - deploy/systemd/homepage-status.timer
+  - monitoring/systemd/pi-metrics.service
+  - monitoring/systemd/pi-metrics.timer
+
+app_timers: "{{ app_systemd_units | map('basename') | select('match', '.*\\.timer$') | list }}"
+
+# Secrets (Pflicht, aus dem Vault; siehe inventory/group_vars/pi/vars.yml)
+# app_tunnel_token: ...
+# app_secrets: {dateiname: inhalt}
+
+# false in der CI: Timer nur aktivieren, Stacks nicht starten.
+app_start_services: true

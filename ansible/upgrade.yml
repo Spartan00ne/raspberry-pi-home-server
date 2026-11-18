@@ -1,0 +1,34 @@
+# Monatliches Voll-Upgrade inklusive Kernel und Firmware aus dem
+# Raspberry-Pi-Repository (unattended-upgrades erfasst diese nicht).
+# Bewusst getrennt von site.yml, damit site.yml idempotent bleibt.
+#
+#   ansible-playbook upgrade.yml
+#
+# Startet den Pi nicht neu, sondern meldet nur, ob ein Neustart nötig ist.
+- name: Raspberry Pi aktualisieren
+  hosts: pi
+  become: true
+  tasks:
+    - name: Alle Pakete aktualisieren (full-upgrade)
+      ansible.builtin.apt:
+        upgrade: full
+        update_cache: true
+        autoremove: true
+      register: upgrade_result
+
+    - name: Prüfen, ob Debian einen Neustart anfordert
+      ansible.builtin.stat:
+        path: /run/reboot-required
+      register: upgrade_reboot_file
+
+    - name: Neustart-Bedarf ermitteln
+      ansible.builtin.set_fact:
+        upgrade_reboot_needed: >-
+          {{ upgrade_reboot_file.stat.exists
+             or (upgrade_result.stdout | default('')) is search('linux-image|raspi-firmware|raspberrypi-kernel') }}
+
+    - name: Ergebnis melden
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'NEUSTART NÖTIG: Kernel oder Firmware wurden aktualisiert. Bitte bewusst neu starten (sudo reboot).'
+             if upgrade_reboot_needed else 'Kein Neustart nötig.' }}

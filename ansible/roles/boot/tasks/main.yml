@@ -1,0 +1,38 @@
+# Ein Fehler in cmdline.txt verhindert den Start. Deshalb: nur anhängen,
+# Sicherung anlegen, Ergebnis vor dem Ersetzen prüfen (genau eine Zeile,
+# enthält root=) und NIE automatisch neu starten.
+- name: Kernel-Kommandozeile suchen
+  ansible.builtin.stat:
+    path: "{{ boot_cmdline_file }}"
+  register: boot_cmdline_stat
+
+- name: Kernel-Kommandozeile anpassen
+  when: boot_cmdline_stat.stat.exists
+  block:
+    - name: Kernel-Kommandozeile lesen
+      ansible.builtin.slurp:
+        src: "{{ boot_cmdline_file }}"
+      register: boot_cmdline_raw
+
+    - name: Fehlende Parameter ermitteln
+      ansible.builtin.set_fact:
+        boot_cmdline_current: "{{ (boot_cmdline_raw.content | b64decode).split() }}"
+        boot_cmdline_missing: "{{ boot_cmdline_params | difference((boot_cmdline_raw.content | b64decode).split()) }}"
+
+    - name: Kommandozeile ist plausibel
+      ansible.builtin.assert:
+        that:
+          - (boot_cmdline_raw.content | b64decode).strip().splitlines() | length == 1
+          - boot_cmdline_current | select('match', 'root=') | list | length == 1
+        fail_msg: "{{ boot_cmdline_file }} sieht unerwartet aus. Abbruch, bitte von Hand prüfen."
+        quiet: true
+
+    # Kein mode: Die Boot-Partition ist FAT und kennt keine Unix-Rechte.
+    - name: Fehlende Parameter anhängen  # noqa: risky-file-permissions
+      ansible.builtin.copy:
+        content: "{{ (boot_cmdline_current + boot_cmdline_missing) | join(' ') }}\n"
+        dest: "{{ boot_cmdline_file }}"
+        backup: true
+        validate: sh -c '[ "$(wc -l < %s)" -eq 1 ] && grep -q "root=" %s'
+      when: boot_cmdline_missing | length > 0
+      notify: Neustart nötig

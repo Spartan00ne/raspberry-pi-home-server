@@ -1,0 +1,26 @@
+# Host-spezifische, nicht geheime Einstellungen des Pi.
+# Geheime Werte stehen verschlüsselt in vault.yml (Präfix vault_) und werden
+# hier nur unter sprechenden Namen referenziert.
+
+admin_user: simeon
+
+# Vollständige Liste der erlaubten SSH-Schlüssel. Alles andere wird entfernt.
+ssh_authorized_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP+GTBX6jG/Nj9gYJAPAN3atS18cmtmvq9vjMWNt1VUV windows-pc
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMSBErRL8EjJZWHzLcp8vpT3hmgnkwSK6warl/MfPV6c ansible-controller (wsl)
+
+firewall_lan_cidr: 192.168.178.0/24
+
+# Ziel des täglichen Backups (scripts/backup). nofail: Der Pi startet auch ohne.
+base_external_drive:
+  path: /mnt/external_drive
+  src: UUID=903AD3723AD35436
+  fstype: ntfs-3g
+  opts: uid=1000,gid=1000,umask=022,nofail,x-systemd.device-timeout=10
+
+# Secrets für die Anwendung (Werte aus dem Vault)
+app_tunnel_token: "{{ vault_tunnel_token }}"
+app_secrets:
+  telegram_bot_token: "{{ vault_telegram_bot_token }}"
+  telegram_chat_id: "{{ vault_telegram_chat_id }}"
+  grafana_admin_password: "{{ vault_grafana_admin_password }}"

@@ -1,0 +1,9 @@
+# Gepinnte Collections. Controller und CI nutzen genau diese Versionen.
+# ansible-core selbst ist in docs/ansible.md bzw. im CI-Workflow gepinnt.
+collections:
+  - name: ansible.posix
+    version: 2.2.2
+  - name: community.general
+    version: 14.0.1
+  - name: community.docker
+    version: 5.4.0

@@ -1,0 +1,49 @@
+- name: Paketlisten aktualisieren (höchstens einmal am Tag)
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 86400
+  # Ein Cache-Update ist keine Konfigurationsänderung.
+  changed_when: false
+
+- name: Grundpakete installieren
+  ansible.builtin.apt:
+    name: "{{ base_packages }}"
+    state: present
+
+# service_facts kennt nur .service-Units, keine Sockets und Targets.
+- name: Vorhandene systemd-Units ermitteln  # noqa: command-instead-of-module
+  ansible.builtin.command: systemctl list-unit-files --no-legend --plain
+  register: base_unit_files
+  changed_when: false
+  check_mode: false
+
+- name: Nicht benötigte NFS-Dienste abschalten
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: false
+    state: stopped
+  loop: "{{ base_disabled_units }}"
+  # Auf einem Minimal-System gibt es die Units evtl. gar nicht.
+  when: base_unit_files.stdout is search('(?m)^' ~ (item | regex_escape) ~ '\s')
+
+- name: Externe Festplatte einbinden
+  when: base_external_drive is defined
+  block:
+    - name: Mountpunkt anlegen
+      ansible.builtin.file:
+        path: "{{ base_external_drive.path }}"
+        state: directory
+        owner: "{{ admin_user }}"
+        group: "{{ admin_user }}"
+        mode: "0755"
+
+    - name: Eintrag in /etc/fstab
+      ansible.posix.mount:
+        path: "{{ base_external_drive.path }}"
+        src: "{{ base_external_drive.src }}"
+        fstype: "{{ base_external_drive.fstype }}"
+        opts: "{{ base_external_drive.opts }}"
+        dump: "0"
+        passno: "0"
+        # Nur fstab pflegen; gemountet wird beim Start bzw. bei Bedarf.
+        state: present

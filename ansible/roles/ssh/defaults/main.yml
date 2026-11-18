@@ -1,0 +1,2 @@
+# Vollständige Liste der erlaubten Schlüssel (Pflicht, siehe inventory).
+ssh_authorized_keys: []

@@ -1,0 +1,7 @@
+[Unit]
+Description=Backup der Homepage
+
+[Service]
+Type=oneshot
+User=simeon
+ExecStart=/home/simeon/homepage/scripts/backup

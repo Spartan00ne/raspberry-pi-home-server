@@ -1,0 +1,61 @@
+# Schutz vor Aussperren: Bevor authorized_keys exklusiv gesetzt wird, muss der
+# Schlüssel, mit dem Ansible gerade verbunden ist, auf der Liste stehen.
+- name: Schlüsselliste ist nicht leer
+  ansible.builtin.assert:
+    that: ssh_authorized_keys | length > 0
+    fail_msg: ssh_authorized_keys ist leer. Das würde jeden Zugang entfernen.
+    quiet: true
+
+- name: Eigener Controller-Schlüssel steht auf der Liste
+  ansible.builtin.assert:
+    that: >-
+      (lookup('ansible.builtin.file', ansible_ssh_private_key_file ~ '.pub').split()[1])
+      in (ssh_authorized_keys | map('split') | map(attribute=1) | list)
+    fail_msg: >-
+      Der Schlüssel {{ ansible_ssh_private_key_file }}.pub fehlt in ssh_authorized_keys.
+      Abbruch, sonst würde sich Ansible selbst aussperren.
+    quiet: true
+  when: ansible_connection | default('ssh') in ['ssh', 'smart']
+
+- name: OpenSSH-Server installieren
+  ansible.builtin.apt:
+    name: openssh-server
+    state: present
+
+- name: Erlaubte Schlüssel setzen (alle anderen entfernen)
+  ansible.posix.authorized_key:
+    user: "{{ admin_user }}"
+    key: "{{ ssh_authorized_keys | join('\n') }}"
+    exclusive: true
+
+- name: Alte Sicherungen von authorized_keys suchen
+  ansible.builtin.find:
+    paths: "/home/{{ admin_user }}/.ssh"
+    patterns: authorized_keys.bak*
+  register: ssh_old_key_backups
+
+- name: Alte Sicherungen löschen (enthalten ausgemusterte Schlüssel)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ ssh_old_key_backups.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+# Eigene Datei mit 00-, weil sshd beim ersten Treffer bleibt und
+# 50-cloud-init.conf sonst PasswordAuthentication yes setzen würde.
+- name: SSH nur mit Schlüssel erlauben
+  ansible.builtin.template:
+    src: 00-keys-only.conf.j2
+    dest: /etc/ssh/sshd_config.d/00-keys-only.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Sshd prüfen und neu laden
+
+- name: SSH-Dienst läuft
+  ansible.builtin.systemd_service:
+    name: ssh
+    enabled: true
+    state: started

@@ -1,0 +1,7 @@
+boot_cmdline_file: /boot/firmware/cmdline.txt
+
+# Werden an die Kernel-Kommandozeile angehängt, falls sie fehlen.
+# cgroup_enable=memory: Die Pi-Firmware setzt cgroup_disable=memory; ohne
+# diesen Parameter gibt es keine RAM-Werte pro Container und keine Limits.
+boot_cmdline_params:
+  - cgroup_enable=memory

@@ -1,0 +1,16 @@
+base_packages:
+  - ca-certificates
+  - curl
+  - git
+  - rsync
+  - ntfs-3g
+
+# Werden nur für NFS gebraucht; rpcbind lauscht sonst unnötig auf Port 111.
+base_disabled_units:
+  - rpcbind.socket
+  - rpcbind.service
+  - nfs-blkmap.service
+  - nfs-client.target
+
+# Optional: externe Festplatte, z. B. für Backups (siehe inventory).
+# base_external_drive: {path, src, fstype, opts}

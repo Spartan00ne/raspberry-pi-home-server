@@ -1,0 +1,9 @@
+- name: Systemd neu einlesen
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Hinweis zum neuen Deploy-Key
+  ansible.builtin.debug:
+    msg: >-
+      Es wurde ein neuer Deploy-Key erzeugt ({{ app_deploy_key }}.pub). Ein alter
+      Eintrag unter GitHub -> Settings -> Deploy keys kann entfernt werden.

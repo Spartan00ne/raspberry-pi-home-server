@@ -1,0 +1,17 @@
+docker_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+
+# SHA-256 von https://download.docker.com/linux/debian/gpg (Stand 2026-11)
+docker_gpg_sha256: 1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570
+
+docker_apt_arch_map:
+  aarch64: arm64
+  x86_64: amd64
+  armv7l: armhf
+
+# In der CI (Container) läuft kein eigener Docker-Daemon.
+docker_start_service: true
