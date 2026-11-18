@@ -115,6 +115,12 @@ Daraus entstehen zwei Alarme (Telegram):
 Einmalig auf dem Pi:
 
 ```bash
+# Einmalig auf die CI-Images umstellen (danach übernimmt das der Timer)
+cd ~/homepage
+TAG=sha-$(git rev-parse HEAD)
+mkdir -p ~/.local/state/homepage-deploy && echo "$TAG" > ~/.local/state/homepage-deploy/api_tag
+sudo env API_TAG=$TAG docker compose up -d --no-build
+
 # Timer installieren und starten
 sudo cp ~/homepage/deploy/systemd/homepage-deploy.{service,timer} /etc/systemd/system/
 sudo systemctl daemon-reload
@@ -123,8 +129,9 @@ sudo systemctl enable --now homepage-deploy.timer
 
 Einmalig auf GitHub:
 
-1. Nach dem ersten CI-Lauf unter *Profil → Packages → dashboard-api →
-   Package settings* die Sichtbarkeit auf **Public** stellen.
+1. Prüfen, ob das Image öffentlich ist: `docker pull ghcr.io/spartan00ne/raspberry-pi-home-server/dashboard-api:main`
+   ohne Login. Bei diesem Repo war es das automatisch; sonst unter
+   *Profil → Packages → dashboard-api → Package settings* auf **Public** stellen.
 2. Unter *Settings → Branches* für `main` eine Regel anlegen: Pull Request
    oder zumindest grüne CI (Status-Check „CI“) vor dem Merge verlangen,
    kein Force-Push.
