@@ -11,9 +11,13 @@ Internet
    │
 Cloudflare Tunnel
    │
-nginx-homepage ── dashboard-api
-   │                    │
-statische Website   Systemdaten
+nginx-homepage ──┬── dashboard-api      Systemdaten für die Homepage
+   │             │
+statische        └── grafana            /monitoring/ (Monitoring-Stack)
+Website                 │
+                    prometheus ◄── node-exporter, cadvisor, blackbox-exporter
+                        │
+                   alertmanager ──► Telegram
 ```
 
 ### Container
@@ -22,6 +26,9 @@ statische Website   Systemdaten
 - **cloudflared**: stellt den Cloudflare Tunnel zur Domain `koffler-online.de` bereit.
 - **dashboard-api**: Flask-/Gunicorn-API auf Port 8080 für Systemdaten wie CPU, RAM,
   Temperatur, Uptime und Speicherplatz.
+
+Zusätzlich läuft ein eigener Monitoring-Stack (Prometheus, Grafana,
+Alertmanager und Exporter), siehe [Monitoring](#monitoring).
 
 Die Container und das gemeinsame Docker-Netzwerk sind in
 [`docker-compose.yml`](docker-compose.yml) definiert. Der Zugriff auf die API
@@ -39,6 +46,26 @@ Systeminformationen des Hosts über die in Compose eingebundenen Verzeichnisse.
 Nginx weist Browser an, statische Dateien automatisch zu revalidieren und die
 Live-API nicht zwischenzuspeichern. Dadurch müssen bei Änderungen keine
 Versionsnummern in HTML-Dateien manuell angepasst werden.
+
+## Monitoring
+
+Live-Dashboard: <https://koffler-online.de/monitoring/>
+
+Der Monitoring-Stack in [`monitoring/`](monitoring/) überwacht den Pi, alle
+Container und die Erreichbarkeit der Website von außen. Probleme wie hohe
+Temperatur, Unterspannung, volle Platten, ausgefallene Container oder eine nicht
+erreichbare Website meldet er per Telegram.
+
+- **Prometheus** sammelt die Metriken und wertet 15 Alarmregeln aus.
+- **Grafana** zeigt das Dashboard, öffentlich nur lesend.
+- **Alertmanager** schickt die Alarme an Telegram.
+- **node-exporter**, **cAdvisor** und **blackbox-exporter** liefern Host-,
+  Container- und Website-Daten.
+- [`scripts/pi-metrics`](scripts/pi-metrics) ergänzt Pi-spezifische Werte aus
+  `vcgencmd` (Unterspannung, Drosselung).
+
+Aufbau, Alarme, Sicherheitsentscheidungen und Einrichtung stehen in
+[`monitoring/README.md`](monitoring/README.md).
 
 ## Status und Backups
 
@@ -62,6 +89,12 @@ Starten oder aktualisieren:
 docker compose up -d --build
 ```
 
+Monitoring starten (nach dem Homepage-Stack, da Grafana dessen Netzwerk nutzt):
+
+```bash
+cd monitoring && docker compose up -d
+```
+
 Status prüfen:
 
 ```bash
@@ -72,7 +105,17 @@ curl http://localhost/api/health
 Das Tunnel-Token liegt ausschließlich in `.env`; diese Datei wird durch
 [`.gitignore`](.gitignore) nicht versioniert.
 
-## Nächste Erweiterung
+## Server-Härtung
 
-Als nächster Schritt ist geplant, den Raspberry Pi zusätzlich als NAS im
-lokalen Netzwerk zu nutzen. Diese Erweiterung ist noch nicht umgesetzt.
+- SSH nur mit Schlüssel, kein Passwort-Login und kein Root-Login
+- Firewall (ufw): eingehend alles gesperrt außer SSH und VNC aus dem Heimnetz
+- automatische Sicherheitsupdates mit `unattended-upgrades`
+- nicht benötigte Dienste (rpcbind/NFS) abgeschaltet
+- keine offenen Ports für Web-Dienste: Die Website ist nur über den Cloudflare
+  Tunnel erreichbar, Admin-Oberflächen nur lokal per SSH-Tunnel
+
+## Nächste Erweiterungen
+
+- CI/CD mit GitHub Actions (Images bauen, testen und auf den Pi ausliefern)
+- Server-Einrichtung als Code mit Ansible
+- den Raspberry Pi zusätzlich als NAS im lokalen Netzwerk nutzen

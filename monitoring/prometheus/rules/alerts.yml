@@ -1,0 +1,135 @@
+groups:
+  - name: raspberry-pi
+    rules:
+      - alert: PiTemperaturHoch
+        expr: max(node_thermal_zone_temp) > 75
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "CPU-Temperatur hoch: {{ $value | printf \"%.1f\" }} °C"
+          description: "Die CPU ist seit 5 Minuten über 75 °C. Ab 80 °C drosselt der Pi."
+
+      - alert: PiTemperaturKritisch
+        expr: max(node_thermal_zone_temp) > 80
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "CPU-Temperatur kritisch: {{ $value | printf \"%.1f\" }} °C"
+          description: "Der Pi drosselt die CPU. Kühlung prüfen."
+
+      - alert: PiUnterspannung
+        expr: pi_throttled_flag{flag="under_voltage"} == 1
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "Unterspannung erkannt"
+          description: "Das Netzteil liefert zu wenig Spannung. Das kann Abstürze und SD-Karten-Fehler verursachen."
+
+      - alert: PiGedrosselt
+        expr: pi_throttled_flag{flag="throttled"} == 1
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "CPU wird gedrosselt"
+          description: "Der Pi läuft wegen Temperatur oder Spannung mit reduzierter Leistung."
+
+      - alert: PiMetrikenVeraltet
+        expr: time() - pi_metrics_last_update_timestamp_seconds > 300 or absent(pi_metrics_last_update_timestamp_seconds)
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Pi-Metriken werden nicht aktualisiert"
+          description: "Der Timer pi-metrics.timer läuft vermutlich nicht. Prüfen mit: systemctl status pi-metrics.timer"
+
+      - alert: SpeicherplatzKnapp
+        expr: 100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|devtmpfs|overlay|squashfs|ramfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|devtmpfs|overlay|squashfs|ramfs"}) > 85
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Speicherplatz knapp auf {{ $labels.mountpoint }}: {{ $value | printf \"%.0f\" }} % belegt"
+          description: "Alte Docker-Images oder Logs aufräumen: docker system prune"
+
+      - alert: SpeicherplatzKritisch
+        expr: 100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|devtmpfs|overlay|squashfs|ramfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|devtmpfs|overlay|squashfs|ramfs"}) > 95
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "Speicherplatz fast voll auf {{ $labels.mountpoint }}: {{ $value | printf \"%.0f\" }} % belegt"
+          description: "Dienste können ausfallen, sobald die Platte voll ist."
+
+      - alert: ArbeitsspeicherKnapp
+        expr: 100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 90
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Arbeitsspeicher knapp: {{ $value | printf \"%.0f\" }} % belegt"
+          description: "Prüfen, welcher Container viel RAM braucht: docker stats"
+
+      - alert: CpuDauerlast
+        expr: node_load15 / count(node_cpu_seconds_total{mode="idle"}) > 1.5
+        for: 15m
+        labels: {severity: warning}
+        annotations:
+          summary: "Dauerhaft hohe Last"
+          description: "Die 15-Minuten-Last liegt seit 15 Minuten über dem 1,5-fachen der CPU-Kerne."
+
+      - alert: PiNeugestartet
+        expr: time() - node_boot_time_seconds < 600
+        labels: {severity: info}
+        annotations:
+          summary: "Der Raspberry Pi wurde neu gestartet"
+          description: "Laufzeit unter 10 Minuten."
+
+  - name: container
+    rules:
+      - alert: ContainerAusgefallen
+        expr: |
+          absent(container_last_seen{name="nginx-homepage"})
+          or absent(container_last_seen{name="cloudflared"})
+          or absent(container_last_seen{name="dashboard-api"})
+          or absent(container_last_seen{name="prometheus"})
+          or absent(container_last_seen{name="alertmanager"})
+          or absent(container_last_seen{name="grafana"})
+          or absent(container_last_seen{name="node-exporter"})
+          or absent(container_last_seen{name="blackbox-exporter"})
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "Container {{ $labels.name }} läuft nicht"
+          description: "Prüfen mit: docker ps -a und docker logs {{ $labels.name }}"
+
+  - name: monitoring
+    rules:
+      - alert: ZielNichtErreichbar
+        expr: up == 0
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "Prometheus erreicht {{ $labels.job }} nicht"
+          description: "Ziel {{ $labels.instance }} antwortet nicht."
+
+  - name: website
+    rules:
+      - alert: WebsiteOffline
+        expr: probe_success == 0
+        for: 3m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.instance }} ist nicht erreichbar"
+          description: "Die Prüfung über das Internet schlägt seit 3 Minuten fehl. Tunnel und nginx prüfen."
+
+      - alert: WebsiteLangsam
+        expr: probe_duration_seconds > 3
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.instance }} antwortet langsam: {{ $value | printf \"%.1f\" }} s"
+          description: "Die Antwortzeit liegt seit 10 Minuten über 3 Sekunden."
+
+      - alert: ZertifikatLaeuftAb
+        expr: (probe_ssl_earliest_cert_expiry - time()) / 86400 < 14
+        for: 1h
+        labels: {severity: warning}
+        annotations:
+          summary: "TLS-Zertifikat für {{ $labels.instance }} läuft in {{ $value | printf \"%.0f\" }} Tagen ab"
+          description: "Cloudflare verlängert normalerweise automatisch. Bitte im Cloudflare-Dashboard prüfen."

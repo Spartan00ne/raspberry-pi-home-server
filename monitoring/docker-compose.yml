@@ -1,0 +1,134 @@
+# Monitoring-Stack für den Raspberry Pi
+# Starten: cd ~/homepage/monitoring && docker compose up -d
+name: monitoring
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.retention.size=2GB
+      - --web.enable-lifecycle
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    ports:
+      - 127.0.0.1:9090:9090  # nur lokal, Zugriff per SSH-Tunnel
+    networks: [monitoring]
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.2
+    container_name: alertmanager
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --cluster.listen-address=  # kein Cluster, nur eine Instanz
+    secrets: [telegram_bot_token, telegram_chat_id]
+    volumes:
+      - ./alertmanager:/etc/alertmanager:ro
+      - alertmanager-data:/alertmanager
+    ports:
+      - 127.0.0.1:9093:9093
+    networks: [monitoring]
+
+  grafana:
+    image: grafana/grafana:13.2.5
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      GF_SERVER_ROOT_URL: https://koffler-online.de/monitoring/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_SECURITY_COOKIE_SAMESITE: strict
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_BASIC_ENABLED: "false"          # kein Passwort-Login über die API
+      GF_AUTH_ANONYMOUS_ENABLED: "true"       # Besucher sehen Dashboards nur lesend
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_AUTH_ANONYMOUS_HIDE_VERSION: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/raspberry-pi.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    secrets: [grafana_admin_password]
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+    ports:
+      - 127.0.0.1:3000:3000
+    networks: [monitoring, web]
+
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    container_name: node-exporter
+    restart: unless-stopped
+    # Host-Netzwerk, damit die echten Netzwerkschnittstellen gemessen werden.
+    # Port 9100 ist per ufw nur aus dem Monitoring-Netz erreichbar.
+    network_mode: host
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --collector.textfile.directory=/host/run/pi-metrics
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+)($|/)
+    volumes:
+      - /:/host:ro,rslave
+
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.60.6
+    container_name: cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices: [/dev/kmsg]
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=30s
+      - --store_container_labels=false
+      - --enable_metrics=cpu,memory,network
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks: [monitoring]
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.29.1
+    container_name: blackbox-exporter
+    restart: unless-stopped
+    command: [--config.file=/etc/blackbox/blackbox.yml]
+    volumes:
+      - ./blackbox:/etc/blackbox:ro
+    networks: [monitoring]
+
+networks:
+  monitoring:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+  web:
+    external: true
+    name: homepage_web  # Netzwerk des Homepage-Stacks (nginx + cloudflared)
+
+volumes:
+  prometheus-data:
+  alertmanager-data:
+  grafana-data:
+
+secrets:
+  telegram_bot_token:
+    file: ./secrets/telegram_bot_token
+  telegram_chat_id:
+    file: ./secrets/telegram_chat_id
+  grafana_admin_password:
+    file: ./secrets/grafana_admin_password

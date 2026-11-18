@@ -1,0 +1,28 @@
+# Bot-Token und Chat-ID kommen als Docker-Secrets und stehen nicht im Repo.
+route:
+  receiver: telegram
+  group_by: [alertname, instance, name, mountpoint]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: telegram
+    telegram_configs:
+      - bot_token_file: /run/secrets/telegram_bot_token
+        chat_id_file: /run/secrets/telegram_chat_id
+        parse_mode: HTML
+        send_resolved: true
+        message: '{{ template "telegram.message" . }}'
+
+templates:
+  - /etc/alertmanager/templates/*.tmpl
+
+inhibit_rules:
+  # Kritische Warnung unterdrückt die normale Warnung zum selben Problem
+  - source_matchers: [severity="critical"]
+    target_matchers: [severity="warning"]
+    equal: [instance, mountpoint]
+  # Fällt cAdvisor aus, sieht es so aus, als wären alle Container weg
+  - source_matchers: [alertname="ZielNichtErreichbar", job="cadvisor"]
+    target_matchers: [alertname="ContainerAusgefallen"]

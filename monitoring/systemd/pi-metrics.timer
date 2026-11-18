@@ -1,0 +1,10 @@
+[Unit]
+Description=Raspberry-Pi-Metriken alle 30 Sekunden aktualisieren
+
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=30s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

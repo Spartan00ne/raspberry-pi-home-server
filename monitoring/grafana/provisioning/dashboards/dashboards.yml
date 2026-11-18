@@ -1,0 +1,11 @@
+apiVersion: 1
+
+# Dashboards werden aus dem Repo geladen (Dashboards as Code).
+# Änderungen in der Oberfläche werden nicht gespeichert, sondern in der JSON-Datei gemacht.
+providers:
+  - name: raspberry-pi
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards

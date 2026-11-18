@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Schreibt Raspberry-Pi-spezifische Werte aus vcgencmd für den Textfile-Collector
+# des node_exporters. Läuft alle 30 Sekunden über pi-metrics.timer.
+# Die Datei liegt in /run (RAM), damit die SD-Karte nicht ständig beschrieben wird.
+set -euo pipefail
+
+OUT_DIR="${1:-/run/pi-metrics}"
+OUT="$OUT_DIR/pi.prom"
+TMP="$(mktemp "$OUT_DIR/.pi.prom.XXXXXX")"
+trap 'rm -f "$TMP"' EXIT
+
+# get_throttled liefert z. B. "throttled=0x50000"; jedes Bit ist ein Zustand.
+raw="$(vcgencmd get_throttled)"
+value=$(( ${raw#*=} ))
+
+declare -A flags=(
+  [0]=under_voltage
+  [1]=freq_capped
+  [2]=throttled
+  [3]=soft_temp_limit
+  [16]=under_voltage_occurred
+  [17]=freq_capped_occurred
+  [18]=throttled_occurred
+  [19]=soft_temp_limit_occurred
+)
+
+volts="$(vcgencmd measure_volts core)"   # z. B. "volt=0.8563V"
+volts="${volts#volt=}"
+volts="${volts%V}"
+
+{
+  echo "# HELP pi_throttled_flag Statusbit aus vcgencmd get_throttled (1 = aktiv bzw. seit dem Start aufgetreten)."
+  echo "# TYPE pi_throttled_flag gauge"
+  for bit in 0 1 2 3 16 17 18 19; do
+    echo "pi_throttled_flag{flag=\"${flags[$bit]}\"} $(( (value >> bit) & 1 ))"
+  done
+  echo "# HELP pi_core_voltage_volts Kernspannung der CPU."
+  echo "# TYPE pi_core_voltage_volts gauge"
+  echo "pi_core_voltage_volts $volts"
+  echo "# HELP pi_metrics_last_update_timestamp_seconds Zeitpunkt der letzten Aktualisierung."
+  echo "# TYPE pi_metrics_last_update_timestamp_seconds gauge"
+  echo "pi_metrics_last_update_timestamp_seconds $(date +%s)"
+} > "$TMP"
+
+chmod 644 "$TMP"
+mv "$TMP" "$OUT"
+trap - EXIT

@@ -5,3 +5,6 @@ __pycache__/
 
 # Local backup data
 backup/
+
+# Monitoring: Secrets (Telegram, Grafana-Passwort)
+monitoring/secrets/
