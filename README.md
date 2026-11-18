@@ -107,6 +107,9 @@ Das Tunnel-Token liegt ausschließlich in `.env`; diese Datei wird durch
 
 ## Server-Härtung
 
+Die einzelnen Schritte, Prüfungen und wie man sie rückgängig macht, stehen in
+[`docs/server-setup.md`](docs/server-setup.md).
+
 - SSH nur mit Schlüssel, kein Passwort-Login und kein Root-Login
 - Firewall (ufw): eingehend alles gesperrt außer SSH und VNC aus dem Heimnetz
 - automatische Sicherheitsupdates mit `unattended-upgrades`
