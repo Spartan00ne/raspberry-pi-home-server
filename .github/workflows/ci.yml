@@ -100,6 +100,79 @@ jobs:
           docker run --rm --add-host dashboard-api:127.0.0.1 \
             -v "$PWD/nginx:/etc/nginx/conf.d:ro" "$NGINX_IMAGE" nginx -t
 
+  ansible:
+    name: Ansible (Lint + Testlauf)
+    # Gleiche Architektur wie der Pi (arm64), damit z. B. das Docker-Repo stimmt.
+    runs-on: ubuntu-24.04-arm
+    env:
+      ANSIBLE_CORE_VERSION: "2.21.6"
+      ANSIBLE_LINT_VERSION: "26.11.0"
+      ANSIBLE_FORCE_COLOR: "1"
+    defaults:
+      run:
+        working-directory: ansible
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Vault-Dateien sind verschlüsselt
+        run: |
+          found=0
+          while IFS= read -r f; do
+            found=1
+            head -1 "$f" | grep -q '^\$ANSIBLE_VAULT;' || { echo "::error file=ansible/$f::Nicht verschlüsselt"; exit 1; }
+            echo "ok: $f"
+          done < <(git ls-files 'inventory/**vault*.yml')
+          [ "$found" = 1 ] || { echo "::error::Keine Vault-Datei gefunden"; exit 1; }
+
+      - name: Ansible installieren (gepinnt)
+        run: |
+          pipx install "ansible-core==${ANSIBLE_CORE_VERSION}"
+          pipx inject --include-apps ansible-core "ansible-lint==${ANSIBLE_LINT_VERSION}"
+          ansible-galaxy collection install -r requirements.yml
+          # Die CI bekommt das echte Vault-Passwort nie; das Test-Inventar braucht keins.
+          echo "ci-has-no-vault-password" > "$RUNNER_TEMP/vault-pass"
+          echo "ANSIBLE_VAULT_PASSWORD_FILE=$RUNNER_TEMP/vault-pass" >> "$GITHUB_ENV"
+
+      - name: ansible-lint (Profil production)
+        run: ansible-lint --profile production
+
+      - name: Syntax-Check
+        run: |
+          ansible-playbook -i tests/inventory --syntax-check site.yml
+          ansible-playbook -i tests/inventory --syntax-check upgrade.yml
+
+      - name: Testcontainer starten (Debian trixie mit systemd)
+        run: |
+          docker build -t pi-test tests
+          # Eigene Volumes für Docker-in-Docker: overlayfs auf overlayfs geht nicht.
+          docker run -d --name pi-test --hostname pi-test --privileged --cgroupns=host \
+            -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
+            -v pi-test-docker:/var/lib/docker -v pi-test-containerd:/var/lib/containerd \
+            --tmpfs /run --tmpfs /run/lock pi-test
+          for _ in $(seq 30); do
+            state=$(docker exec pi-test systemctl is-system-running 2>/dev/null || true)
+            [[ "$state" == running || "$state" == degraded ]] && break
+            sleep 1
+          done
+          echo "systemd: $state"
+
+      # boot (cmdline.txt) und firewall (ufw) gibt es im Container nicht sinnvoll.
+      - name: Erster Lauf
+        run: ansible-playbook -i tests/inventory site.yml --skip-tags boot,firewall
+
+      - name: Zweiter Lauf muss idempotent sein (changed=0)
+        run: |
+          set -o pipefail
+          ansible-playbook -i tests/inventory site.yml --skip-tags boot,firewall | tee "$RUNNER_TEMP/second.log"
+          sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/second.log" \
+            | grep -qE '^pi-test +: ok=[0-9]+ +changed=0 +unreachable=0 +failed=0' \
+            || { echo "::error::Zweiter Lauf hat noch etwas geändert (nicht idempotent)"; exit 1; }
+
+      - name: Container-Logs bei Fehler
+        if: failure()
+        working-directory: .
+        run: docker exec pi-test journalctl --no-pager -n 100 || true
+
   image:
     name: Image bauen (arm64)
     needs: [lint, validate]

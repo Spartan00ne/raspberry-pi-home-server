@@ -1,0 +1,202 @@
+# Richtet die Anwendung ein. Zuständigkeit:
+#   Ansible:     Repo-Erstklon, Secrets, .env, systemd-Units, einmaliger Erststart
+#   Deploy-Timer: alle späteren Updates aus main (scripts/deploy)
+# Ansible ändert deshalb nie getrackte Dateien im Checkout und zieht keine
+# neuen Commits – sonst bricht das Deployment ab.
+
+- name: Admin-Benutzer darf vcgencmd nutzen (pi-metrics)
+  ansible.builtin.user:
+    name: "{{ app_user }}"
+    groups: video
+    append: true
+
+# --- Zugang zu GitHub (Deploy-Key) ---------------------------------------
+
+- name: Deploy-Key erzeugen, falls keiner existiert
+  ansible.builtin.command: >-
+    ssh-keygen -q -t ed25519 -N '' -C 'raspberry-pi deploy key' -f {{ app_deploy_key }}
+  args:
+    creates: "{{ app_deploy_key }}"
+  become: true
+  become_user: "{{ app_user }}"
+  notify: Hinweis zum neuen Deploy-Key
+
+- name: SSH-Konfiguration für GitHub
+  ansible.builtin.copy:
+    content: |
+      Host github.com
+        IdentityFile ~/.ssh/github_deploy_homepage
+        IdentitiesOnly yes
+    dest: "{{ app_home }}/.ssh/config"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0600"
+
+- name: Host-Key von GitHub kennen
+  ansible.builtin.known_hosts:
+    name: github.com
+    key: "{{ app_github_host_key }}"
+    path: "{{ app_home }}/.ssh/known_hosts"
+    hash_host: true
+  become: true
+  become_user: "{{ app_user }}"
+
+# --- Repository ------------------------------------------------------------
+
+- name: Prüfen, ob das Repository schon geklont ist
+  ansible.builtin.stat:
+    path: "{{ app_dir }}/.git"
+  register: app_repo_stat
+
+- name: Erstklon vorbereiten
+  when: not app_repo_stat.stat.exists and app_repo_url is match('git@')
+  block:
+    - name: Deploy-Key bei GitHub testen
+      ansible.builtin.command: ssh -o BatchMode=yes -T git@github.com
+      become: true
+      become_user: "{{ app_user }}"
+      register: app_github_test
+      changed_when: false
+      failed_when: false
+
+    - name: Öffentlichen Deploy-Key lesen
+      ansible.builtin.slurp:
+        src: "{{ app_deploy_key }}.pub"
+      register: app_deploy_pubkey
+      when: app_github_test.stderr is not search('successfully authenticated')
+
+    - name: Deploy-Key muss erst bei GitHub eingetragen werden
+      ansible.builtin.fail:
+        msg: |
+          GitHub kennt den Deploy-Key dieses Pi noch nicht. Bitte eintragen unter
+          Repository -> Settings -> Deploy keys -> Add deploy key (Allow write access):
+
+          {{ app_deploy_pubkey.content | b64decode | trim }}
+
+          Danach das Playbook erneut starten.
+      when: app_github_test.stderr is not search('successfully authenticated')
+
+# update: false -> nur klonen, wenn noch nicht vorhanden. Spätere Stände holt
+# der Deploy-Timer.
+- name: Repository klonen
+  ansible.builtin.git:
+    repo: "{{ app_repo_url }}"
+    dest: "{{ app_dir }}"
+    version: "{{ app_branch }}"
+    update: false
+  become: true
+  become_user: "{{ app_user }}"
+
+# --- Secrets ---------------------------------------------------------------
+
+- name: Verzeichnis für Docker-Secrets
+  ansible.builtin.file:
+    path: "{{ app_dir }}/monitoring/secrets"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0700"
+
+# 0644: Die Container-Benutzer (z. B. nobody) müssen die Dateien lesen können.
+# Geschützt sind sie über das Verzeichnis (0700).
+- name: Docker-Secrets schreiben
+  ansible.builtin.copy:
+    content: "{{ item.value }}"
+    dest: "{{ app_dir }}/monitoring/secrets/{{ item.key }}"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0644"
+  loop: "{{ app_secrets | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  no_log: true
+  diff: false
+
+- name: Cloudflare-Tunnel-Token (.env)
+  ansible.builtin.copy:
+    content: "TUNNEL_TOKEN={{ app_tunnel_token }}"
+    dest: "{{ app_dir }}/.env"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0600"
+  no_log: true
+  diff: false
+
+# --- systemd ---------------------------------------------------------------
+
+- name: Systemd-Units installieren
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../{{ item }}"
+    dest: "/etc/systemd/system/{{ item | basename }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ app_systemd_units }}"
+  notify: Systemd neu einlesen
+
+- name: Geänderte Units sofort einlesen
+  ansible.builtin.meta: flush_handlers
+
+# --- Erststart (nur auf einem frischen Server) -----------------------------
+
+- name: Prüfen, ob schon einmal ausgerollt wurde
+  ansible.builtin.stat:
+    path: "{{ app_state_dir }}/deployed_commit"
+  register: app_deployed
+
+- name: Erststart
+  when: not app_deployed.stat.exists and app_start_services
+  block:
+    # Das git-Modul kann den ausgecheckten Commit nicht nur lesen.
+    - name: Ausgecheckten Commit ermitteln  # noqa: command-instead-of-module
+      ansible.builtin.command: git -C {{ app_dir }} rev-parse HEAD
+      become: true
+      become_user: "{{ app_user }}"
+      register: app_head
+      changed_when: false
+
+    - name: Deploy-Zustand anlegen
+      ansible.builtin.file:
+        path: "{{ app_state_dir }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0775"
+
+    - name: Image-Tag festhalten
+      ansible.builtin.copy:
+        content: "sha-{{ app_head.stdout }}\n"
+        dest: "{{ app_state_dir }}/api_tag"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0664"
+
+    # Reihenfolge: Grafana hängt am externen Netz homepage_web.
+    - name: Homepage-Stack starten
+      ansible.builtin.command: docker compose up -d --no-build
+      args:
+        chdir: "{{ app_dir }}"
+      environment:
+        API_TAG: "sha-{{ app_head.stdout }}"
+      changed_when: true
+
+    - name: Monitoring-Stack starten
+      ansible.builtin.command: docker compose up -d
+      args:
+        chdir: "{{ app_dir }}/monitoring"
+      changed_when: true
+
+    - name: Ausgerollten Commit festhalten
+      ansible.builtin.copy:
+        content: "{{ app_head.stdout }}\n"
+        dest: "{{ app_state_dir }}/deployed_commit"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0664"
+
+- name: Timer aktivieren
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: "{{ 'started' if app_start_services else omit }}"
+  loop: "{{ app_timers }}"

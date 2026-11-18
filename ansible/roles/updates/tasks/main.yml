@@ -1,0 +1,22 @@
+# Automatische Sicherheitsupdates aus Debian. Kernel und Firmware aus dem
+# Raspberry-Pi-Repository werden davon nicht erfasst -> upgrade.yml.
+- name: Unattended-upgrades installieren
+  ansible.builtin.apt:
+    name:
+      - unattended-upgrades
+      - apt-listchanges
+    state: present
+
+- name: Automatische Updates einschalten
+  ansible.builtin.copy:
+    src: 20auto-upgrades
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Unattended-upgrades läuft
+  ansible.builtin.systemd_service:
+    name: unattended-upgrades
+    enabled: true
+    state: started

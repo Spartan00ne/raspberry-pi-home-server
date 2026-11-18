@@ -1,0 +1,6 @@
+- name: Neustart nötig
+  ansible.builtin.debug:
+    msg: >-
+      NEUSTART NÖTIG: Die Kernel-Kommandozeile wurde geändert. Der Pi wird
+      bewusst nicht automatisch neu gestartet. Bitte prüfen
+      ({{ boot_cmdline_file }}) und dann von Hand neu starten.

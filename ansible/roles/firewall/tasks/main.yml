@@ -1,0 +1,92 @@
+# Ablauf, damit eine fehlerhafte Regel nicht aussperrt:
+#   1. Vorschau im Check-Modus: Gibt es überhaupt etwas zu ändern?
+#   2. Nur dann: Rettungs-Timer starten (schaltet ufw nach N Minuten ab),
+#      Regeln anwenden, über eine NEUE SSH-Verbindung testen, Timer stoppen.
+# Schlägt der Test fehl, bleibt der Timer aktiv und öffnet den Pi wieder.
+
+- name: Ufw installieren
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: Vorschau – Standardregeln
+  community.general.ufw:
+    direction: "{{ item.direction }}"
+    default: "{{ item.policy }}"
+  loop: "{{ firewall_defaults }}"
+  check_mode: true
+  register: firewall_preview_defaults
+
+- name: Vorschau – Regeln
+  community.general.ufw:
+    rule: allow
+    from_ip: "{{ item.from }}"
+    to_port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+    comment: "{{ item.comment }}"
+  loop: "{{ firewall_rules }}"
+  check_mode: true
+  register: firewall_preview_rules
+
+- name: Vorschau – Logging und aktiv
+  community.general.ufw:
+    logging: "{{ firewall_logging }}"
+    state: enabled
+  check_mode: true
+  register: firewall_preview_state
+
+- name: Änderungen anwenden (mit Rettungs-Timer)
+  when: >-
+    (firewall_preview_defaults is changed or firewall_preview_rules is changed
+     or firewall_preview_state is changed) and not ansible_check_mode
+  block:
+    - name: Eindeutigen Namen für den Rettungs-Timer festlegen
+      ansible.builtin.set_fact:
+        firewall_rescue_unit: "ufw-rescue-{{ lookup('ansible.builtin.pipe', 'date +%s') }}"
+
+    - name: Rettungs-Timer starten
+      ansible.builtin.command: >-
+        systemd-run --on-active={{ firewall_rescue_minutes }}min
+        --unit={{ firewall_rescue_unit }} /usr/sbin/ufw disable
+      changed_when: true
+
+    - name: Standardregeln setzen
+      community.general.ufw:
+        direction: "{{ item.direction }}"
+        default: "{{ item.policy }}"
+      loop: "{{ firewall_defaults }}"
+
+    - name: Regeln setzen
+      community.general.ufw:
+        rule: allow
+        from_ip: "{{ item.from }}"
+        to_port: "{{ item.port }}"
+        proto: "{{ item.proto }}"
+        comment: "{{ item.comment }}"
+      loop: "{{ firewall_rules }}"
+
+    - name: Logging setzen und ufw aktivieren
+      community.general.ufw:
+        logging: "{{ firewall_logging }}"
+        state: enabled
+
+    # Bewusst eine neue Verbindung ohne SSH-Multiplexing: Eine bestehende
+    # Verbindung würde eine neue Sperre nicht bemerken.
+    - name: Neue SSH-Verbindung testen
+      ansible.builtin.command: >-
+        ssh -o BatchMode=yes -o ControlMaster=no -o ControlPath=none
+        -o ConnectTimeout=10 -i {{ ansible_ssh_private_key_file }}
+        {{ ansible_user }}@{{ ansible_host }} true
+      delegate_to: localhost
+      become: false
+      register: firewall_ssh_test
+      retries: 3
+      delay: 5
+      until: firewall_ssh_test.rc == 0
+      changed_when: false
+      when: ansible_connection | default('ssh') in ['ssh', 'smart']
+
+    - name: Rettungs-Timer stoppen
+      ansible.builtin.systemd_service:
+        name: "{{ firewall_rescue_unit }}.timer"
+        state: stopped

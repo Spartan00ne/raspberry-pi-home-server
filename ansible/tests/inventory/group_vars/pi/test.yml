@@ -1,0 +1,15 @@
+# Überschreibt für die CI, was es im Container nicht gibt oder nicht geben darf.
+# vars.yml in diesem Verzeichnis ist ein Symlink auf das echte Inventar, damit
+# genau dieselben Einstellungen getestet werden.
+
+# Dummy-Secrets: Die CI bekommt das echte Vault-Passwort nie.
+vault_tunnel_token: ci-dummy-tunnel-token
+vault_telegram_bot_token: "123456:ci-dummy\n"
+vault_telegram_chat_id: "1"
+vault_grafana_admin_password: ci-dummy-password
+
+# Öffentlicher HTTPS-Klon statt Deploy-Key
+app_repo_url: https://github.com/Spartan00ne/raspberry-pi-home-server.git
+
+# Timer nur aktivieren, keine Stacks starten (kein Tunnel, keine Secrets)
+app_start_services: false

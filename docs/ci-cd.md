@@ -188,4 +188,4 @@ den Revert wie jede andere Änderung aus.
 Änderungen an systemd-Units (`deploy/systemd/`, `monitoring/systemd/`) werden
 nicht automatisch installiert, weil das Root-Rechte auf Systemebene braucht.
 Das Skript weist im Log darauf hin; installiert wird wie in der Ersteinrichtung.
-Das übernimmt später Ansible.
+Das übernimmt `ansible-playbook site.yml --tags app` (siehe [ansible.md](ansible.md)).

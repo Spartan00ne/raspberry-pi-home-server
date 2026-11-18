@@ -1,0 +1,26 @@
+# Richtet den Raspberry-Pi-Homeserver vollständig ein: Härtung, Docker,
+# Anwendung. Idempotent: Ein zweiter Lauf ändert nichts.
+#
+#   ansible-playbook site.yml --check --diff          # nur anzeigen
+#   ansible-playbook site.yml --tags base             # eine Rolle
+#
+# Der Pi wird nie automatisch neu gestartet. Ist ein Neustart nötig, meldet
+# das Playbook es am Ende.
+- name: Raspberry-Pi-Homeserver einrichten
+  hosts: pi
+  become: true
+  roles:
+    - role: base
+      tags: [base]
+    - role: ssh
+      tags: [ssh]
+    - role: firewall
+      tags: [firewall]
+    - role: updates
+      tags: [updates]
+    - role: boot
+      tags: [boot]
+    - role: docker
+      tags: [docker]
+    - role: app
+      tags: [app]

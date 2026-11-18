@@ -1,0 +1,22 @@
+firewall_lan_cidr: 192.168.178.0/24
+
+# Docker-Netz des Monitoring-Stacks (monitoring/docker-compose.yml)
+firewall_monitoring_cidr: 172.30.0.0/24
+
+firewall_rules:
+  - { port: "22", proto: tcp, from: "{{ firewall_lan_cidr }}", comment: SSH LAN }
+  - { port: "5900", proto: tcp, from: "{{ firewall_lan_cidr }}", comment: VNC LAN }
+  - { port: "5353", proto: udp, from: "{{ firewall_lan_cidr }}", comment: mDNS LAN }
+  # Prometheus (Monitoring-Netz) fragt den node-exporter im Host-Netz ab.
+  - { port: "9100", proto: tcp, from: "{{ firewall_monitoring_cidr }}", comment: node-exporter fuer Prometheus }
+
+firewall_defaults:
+  - { direction: incoming, policy: deny }
+  - { direction: outgoing, policy: allow }
+  - { direction: routed, policy: deny }
+
+firewall_logging: low
+
+# Nach so vielen Minuten schaltet der Rettungs-Timer ufw ab, falls die
+# Verbindung nach einer Änderung nicht mehr bestätigt werden konnte.
+firewall_rescue_minutes: 5

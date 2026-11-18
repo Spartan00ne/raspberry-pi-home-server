@@ -12,3 +12,7 @@ monitoring/secrets/
 # Wird von homepage-status.timer laufend neu geschrieben
 runtime/status.json
 .ruff_cache/
+
+# Ansible: Vault-Passwort liegt nur auf dem Controller
+vault-pass
+*.vault-pass
