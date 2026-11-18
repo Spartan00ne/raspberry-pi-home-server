@@ -4,7 +4,7 @@ __pycache__/
 .pytest_cache/
 
 # Local backup data
-backup/
+/backup/
 
 # Monitoring: Secrets (Telegram, Grafana-Passwort)
 monitoring/secrets/

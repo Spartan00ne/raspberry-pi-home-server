@@ -1,0 +1,24 @@
+# Backup des Zustands mit restic (siehe docs/backup.md).
+
+# Repository auf der externen Platte (base_external_drive in der Inventory).
+backup_mount: /mnt/external_drive
+backup_repository: "{{ backup_mount }}/restic"
+
+# Passwort des restic-Repositorys (Pflicht, aus dem Vault). Ohne dieses
+# Passwort sind die Backups wertlos.
+# backup_password: ...
+
+# Repository anlegen, falls es noch keins gibt. In der CI aus (keine Platte).
+backup_init_repo: true
+
+# Besitzer des Textfile-Verzeichnisses des node_exporters (wie pi-metrics).
+backup_metrics_owner: "{{ admin_user }}"
+
+# systemd-Units aus dem Repo (Pfade relativ zur Repo-Wurzel)
+backup_systemd_units:
+  - deploy/systemd/homepage-backup.service
+  - deploy/systemd/homepage-backup.timer
+  - deploy/systemd/homepage-restore-test.service
+  - deploy/systemd/homepage-restore-test.timer
+
+backup_timers: "{{ backup_systemd_units | map('basename') | select('match', '.*\\.timer$') | list }}"
