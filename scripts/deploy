@@ -77,7 +77,6 @@ else:
 }
 
 healthy() {
-
   for _ in $(seq 1 30); do
     if sudo docker exec nginx-homepage curl -fsS -o /dev/null http://localhost/ &&
        sudo docker exec nginx-homepage curl -fsS -o /dev/null http://localhost/api/health; then
@@ -141,9 +140,14 @@ main() {
   cd "$REPO_DIR"
   git fetch --quiet origin "$BRANCH"
 
-  local current target
-  current="$(git rev-parse HEAD)"
+  # "current" ist der zuletzt ausgerollte Commit, nicht HEAD: Wird direkt auf
+  # dem Pi committet und gepusht, steht HEAD schon auf dem neuen Commit, obwohl
+  # Image und Konfiguration noch nicht ausgerollt sind.
+  local head current target
+  head="$(git rev-parse HEAD)"
   target="$(git rev-parse "origin/$BRANCH")"
+  current="$(state_get deployed_commit)"
+  current="${current:-$head}"
   API_TAG="$(state_get api_tag)"
   API_TAG="${API_TAG:-main}"
 
@@ -158,11 +162,14 @@ main() {
     exit 0
   fi
 
-  if ! git merge-base --is-ancestor "$current" "$target"; then
-    log "FEHLER: lokaler Stand ${current:0:7} ist nicht in origin/$BRANCH enthalten (lokale Commits?)"
-    write_metrics 0 "${target:0:7}"
-    exit 1
-  fi
+  local c
+  for c in "$head" "$current"; do
+    if ! git merge-base --is-ancestor "$c" "$target"; then
+      log "FEHLER: ${c:0:7} ist nicht in origin/$BRANCH enthalten (ungepushte Commits oder Force-Push?)"
+      write_metrics 0 "${target:0:7}"
+      exit 1
+    fi
+  done
 
   if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
     log "FEHLER: lokale Änderungen im Repo, Deployment abgebrochen:"
@@ -199,6 +206,7 @@ main() {
   fi
 
   if apply "$target" "$current" && healthy; then
+    state_set deployed_commit "$target"
     state_set api_tag "$API_TAG"
     state_set last_success_ts "$(date +%s)"
     rm -f "$STATE_DIR/failed_commit"

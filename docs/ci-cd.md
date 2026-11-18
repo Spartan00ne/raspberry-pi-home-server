@@ -57,7 +57,10 @@ sich per `git revert` zurücknehmen.
 Läuft als `homepage-deploy.service` alle 2 Minuten
 ([Timer](../deploy/systemd/homepage-deploy.timer)).
 
-1. `git fetch`. Kein neuer Commit: fertig (keine Anfrage an die GitHub-API).
+1. `git fetch`. Ist `origin/main` schon ausgerollt: fertig (keine Anfrage an
+   die GitHub-API). Der ausgerollte Commit steht in
+   `~/.local/state/homepage-deploy/deployed_commit`, nicht in `HEAD`, damit auch
+   direkt auf dem Pi committete und gepushte Änderungen ausgerollt werden.
 2. Sicherheitsprüfungen: Der lokale Stand muss in `origin/main` enthalten sein
    und darf keine lokalen Änderungen haben, sonst bricht das Skript ab, statt
    etwas zu überschreiben.
@@ -118,7 +121,9 @@ Einmalig auf dem Pi:
 # Einmalig auf die CI-Images umstellen (danach übernimmt das der Timer)
 cd ~/homepage
 TAG=sha-$(git rev-parse HEAD)
-mkdir -p ~/.local/state/homepage-deploy && echo "$TAG" > ~/.local/state/homepage-deploy/api_tag
+mkdir -p ~/.local/state/homepage-deploy && cd ~/.local/state/homepage-deploy
+echo "$TAG" > api_tag && git -C ~/homepage rev-parse HEAD > deployed_commit
+cd ~/homepage
 sudo env API_TAG=$TAG docker compose up -d --no-build
 
 # Timer installieren und starten
