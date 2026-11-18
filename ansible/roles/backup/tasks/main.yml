@@ -1,0 +1,97 @@
+# Richtet das Backup des Zustands ein: restic, Repository-Zugang, Units und
+# Timer für Backup (täglich) und Restore-Test (wöchentlich). Die Skripte
+# selbst liegen im Repo (scripts/backup, restore, restore-test) und kommen
+# über den Deploy-Timer.
+
+- name: Restic installieren
+  ansible.builtin.apt:
+    name: restic
+    state: present
+
+- name: Verzeichnis für den Repository-Zugang
+  ansible.builtin.file:
+    path: /etc/restic
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Repository-Passwort
+  ansible.builtin.copy:
+    content: "{{ backup_password }}"
+    dest: /etc/restic/password
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  diff: false
+
+- name: Repository-Einstellungen
+  ansible.builtin.template:
+    src: env.j2
+    dest: /etc/restic/env
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Verzeichnis für die Backup-Metriken
+  ansible.builtin.file:
+    path: /var/lib/homepage-backup
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Backup-Metriken nach einem Neustart wiederherstellen
+  ansible.builtin.template:
+    src: tmpfiles.conf.j2
+    dest: /etc/tmpfiles.d/homepage-backup.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Systemd-Units installieren
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../{{ item }}"
+    dest: "/etc/systemd/system/{{ item | basename }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ backup_systemd_units }}"
+  notify: Systemd neu einlesen
+
+- name: Geänderte Units sofort einlesen
+  ansible.builtin.meta: flush_handlers
+
+- name: Repository anlegen, falls es noch keins gibt
+  when: backup_init_repo
+  environment:
+    RESTIC_REPOSITORY: "{{ backup_repository }}"
+    RESTIC_PASSWORD_FILE: /etc/restic/password
+    RESTIC_CACHE_DIR: /var/cache/restic
+  block:
+    - name: Externe Platte muss eingehängt sein
+      ansible.builtin.command: mountpoint -q {{ backup_mount }}
+      changed_when: false
+      check_mode: false
+
+    # Schlägt auch bei falschem Passwort fehl; restic init bricht dann ab,
+    # weil es das Repository schon gibt. Es wird also nie etwas überschrieben.
+    - name: Prüfen, ob das Repository existiert
+      ansible.builtin.command: restic cat config
+      register: backup_repo_check
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Repository anlegen
+      ansible.builtin.command: restic init
+      when: backup_repo_check.rc != 0
+      changed_when: true
+
+- name: Timer aktivieren
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop: "{{ backup_timers }}"

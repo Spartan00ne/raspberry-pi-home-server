@@ -1,0 +1,67 @@
+# Spielt den gesicherten Zustand (Grafana, Prometheus, Alertmanager) aus dem
+# restic-Repository auf der externen Platte zurück. Für den Ernstfall, z. B.
+# nach einem Neuaufbau mit site.yml. Details in docs/backup.md.
+#
+#   ansible-playbook restore.yml                         # neuester Snapshot
+#   ansible-playbook restore.yml -e snapshot=1a2b3c4d    # bestimmter Snapshot
+#   ansible-playbook restore.yml -e force=true           # Volumes haben schon Daten
+#
+# Schutz vor Versehen: Enthalten die Volumes schon Daten, bricht das Playbook
+# ohne force=true ab. Mit force=true wird der aktuelle Stand vorher gesichert
+# (restic-Tag pre-restore), der Restore lässt sich also rückgängig machen.
+# Die eigentliche Arbeit macht scripts/restore auf dem Pi, derselbe Code wie im
+# wöchentlichen Restore-Test. Ohne Controller geht es deshalb auch direkt:
+#   sudo ~/homepage/scripts/restore latest --live [--force]
+- name: Zustand aus dem Backup wiederherstellen
+  hosts: pi
+  become: true
+  vars:
+    snapshot: latest
+    force: false
+    restore_script: "/home/{{ admin_user }}/homepage/scripts/restore"
+  tasks:
+    - name: Kein Check-Modus (ein Restore lässt sich nicht simulieren)
+      ansible.builtin.fail:
+        msg: restore.yml ändert Daten und unterstützt --check nicht.
+      when: ansible_check_mode
+
+    - name: Snapshot zurückspielen
+      ansible.builtin.command:
+        argv: "{{ [restore_script, snapshot, '--live'] + (['--force'] if force | bool else []) }}"
+      register: restore_result
+      changed_when: true
+      failed_when: false
+
+    - name: Abbruch, weil die Volumes schon Daten enthalten
+      ansible.builtin.fail:
+        msg: |
+          Die Volumes enthalten bereits Daten, es wurde nichts verändert.
+          Zum Überschreiben erneut mit -e force=true starten. Der aktuelle
+          Stand wird dann vorher gesichert (restic-Tag pre-restore).
+      when: restore_result.rc == 3
+
+    - name: Restore fehlgeschlagen
+      ansible.builtin.fail:
+        msg: "{{ restore_result.stderr_lines + restore_result.stdout_lines[-20:] }}"
+      when: restore_result.rc not in [0, 3]
+
+    - name: Grafana antwortet mit Datenbank
+      ansible.builtin.uri:
+        url: http://127.0.0.1:3000/api/health
+        return_content: true
+      register: restore_grafana
+      until: restore_grafana.status == 200 and restore_grafana.json.database == 'ok'
+      retries: 36
+      delay: 5
+
+    - name: Prometheus ist bereit
+      ansible.builtin.uri:
+        url: http://127.0.0.1:9090/-/ready
+      register: restore_prometheus
+      until: restore_prometheus.status == 200
+      retries: 36
+      delay: 5
+
+    - name: Ergebnis
+      ansible.builtin.debug:
+        msg: "{{ restore_result.stdout_lines | select('search', 'Wiederhergestellt') | list }}"

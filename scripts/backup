@@ -1,16 +1,60 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Sichert den Zustand des Servers mit restic auf die externe Festplatte.
+# Läuft täglich um 03:00 (homepage-backup.timer), Details in docs/backup.md.
+#
+# Gesichert werden nur Daten, die sich nicht aus Git und Ansible Vault neu
+# erzeugen lassen: die Docker-Volumes von Grafana, Prometheus und Alertmanager.
+#
+# Ablauf:
+#   1. Prüfen, ob die externe Platte eingehängt und das Repository lesbar ist.
+#   2. Monitoring-Container kurz anhalten (konsistente SQLite-DB und TSDB).
+#      Ein trap startet sie in jedem Fall wieder.
+#   3. restic backup, danach die Container sofort wieder starten.
+#   4. Alte Snapshots ausdünnen: 7 tägliche, 4 wöchentliche, 6 monatliche;
+#      sonntags zusätzlich prune (Speicher wirklich freigeben).
+#   5. Ergebnis als Metrik für den node_exporter (Alarme BackupFehlgeschlagen
+#      und BackupVeraltet).
+#
+# Aufruf: sudo scripts/backup [tag]   (Standard-Tag: auto; restore nutzt pre-restore)
+set -euo pipefail
 
-set -e
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+LOG_TAG=backup
+# shellcheck source=scripts/backup-lib
+source "$SCRIPT_DIR/backup-lib"
 
-SOURCE="/home/simeon/homepage"
-BACKUP_ROOT="/mnt/external_drive/homepage/"
-BACKUP="$BACKUP_ROOT/$(date +%Y-%m-%d_%H-%M-%S)"
+TAG="${1:-auto}"
+START="$(date +%s)"
 
-mkdir -p "$BACKUP"
+finish() {
+  local rc=$?
+  start_containers
+  write_metrics backup homepage_backup "$(( rc == 0 ? 1 : 0 ))" "$(( $(date +%s) - START ))" || true
+  if (( rc == 0 )); then
+    log "Backup erfolgreich."
+  else
+    log "Backup FEHLGESCHLAGEN (Exit $rc)."
+  fi
+  exit "$rc"
+}
+trap finish EXIT
 
-rsync -a "$SOURCE/" "$BACKUP/"
+take_lock
+require_repo
 
-# Backups älter als 30 Tage löschen
-find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d -mtime +30 -exec rm  -rf {} \;
+paths=()
+for name in "${!BACKUP_VOLUMES[@]}"; do
+  dir="$(volume_path "${BACKUP_VOLUMES[$name]}")"
+  [[ -d "$dir" ]] || die "Volume fehlt: $dir"
+  paths+=("$dir")
+done
 
-echo "Backup erstellt: $BACKUP"
+stop_containers
+restic backup --host "$BACKUP_HOST" --tag "$TAG" "${paths[@]}"
+start_containers
+
+forget_args=(--host "$BACKUP_HOST" --keep-daily 7 --keep-weekly 4 --keep-monthly 6)
+if [[ "$(date +%u)" == 7 ]]; then
+  forget_args+=(--prune)
+fi
+restic forget "${forget_args[@]}"

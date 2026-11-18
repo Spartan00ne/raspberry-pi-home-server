@@ -58,7 +58,7 @@ Container und die Erreichbarkeit der Website von außen. Probleme wie hohe
 Temperatur, Unterspannung, volle Platten, ausgefallene Container oder eine nicht
 erreichbare Website meldet er per Telegram.
 
-- **Prometheus** sammelt die Metriken und wertet 17 Alarmregeln aus (mit Unit-Tests).
+- **Prometheus** sammelt die Metriken und wertet 21 Alarmregeln aus (mit Unit-Tests).
 - **Grafana** zeigt das Dashboard, öffentlich nur lesend.
 - **Alertmanager** schickt die Alarme an Telegram.
 - **node-exporter**, **cAdvisor** und **blackbox-exporter** liefern Host-,
@@ -90,8 +90,11 @@ Details und Begründung: [`docs/ci-cd.md`](docs/ci-cd.md)
 - [`runtime/status.json`](runtime/status.json) enthält den zuletzt erfassten
   Status der drei Docker-Container.
 - [`scripts/update-status`](scripts/update-status) aktualisiert diese Datei.
-- [`scripts/backup`](scripts/backup) sichert das Projekt per `rsync` nach
-  `/mnt/external_drive/homepage/` und entfernt Backups älter als 30 Tage.
+- [`scripts/backup`](scripts/backup) sichert täglich den Zustand (Grafana,
+  Prometheus, Alertmanager) verschlüsselt mit restic auf die externe Platte.
+  Ein wöchentlicher Restore-Test spielt das neueste Backup in Wegwerf-Container
+  zurück und prüft es; [`ansible/restore.yml`](ansible/restore.yml) stellt im
+  Ernstfall wieder her. Details: [`docs/backup.md`](docs/backup.md)
 
 ## Betrieb
 

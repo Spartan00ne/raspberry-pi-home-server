@@ -16,6 +16,7 @@ einzelnen Härtungen bewirken und warum, steht in [`server-setup.md`](server-set
 | `boot` | `cgroup_enable=memory` in der Kernel-Kommandozeile (RAM-Werte pro Container) |
 | `docker` | Docker aus dem offiziellen Repository, GPG-Schlüssel per SHA-256 gepinnt |
 | `app` | Deploy-Key, Repo-Klon, Secrets, `.env`, systemd-Units und Timer, Erststart |
+| `backup` | restic, Repository-Zugang, Timer für Backup und Restore-Test ([`backup.md`](backup.md)) |
 
 Jede Rolle hat ein gleichnamiges Tag (`--tags ssh`).
 
@@ -93,6 +94,7 @@ ansible-playbook site.yml --check --diff     # nur anzeigen, was sich ändern w�
 ansible-playbook site.yml                    # anwenden
 ansible-playbook site.yml --tags app         # nur eine Rolle
 ansible-playbook upgrade.yml                 # monatlich: Voll-Upgrade inkl. Kernel
+ansible-playbook restore.yml -e force=true   # Zustand aus dem Backup zurückspielen
 ansible-vault edit inventory/group_vars/pi/vault.yml   # Secrets ändern
 ```
 
@@ -112,8 +114,10 @@ heißt, dass jemand von Hand etwas geändert hat (Drift).
    Secrets, Units und Timer werden eingerichtet. Danach startet der Erststart
    die Container: erst die Homepage, dann das Monitoring.
 5. Der Lauf meldet „Neustart nötig“ (cgroup). Dann `sudo reboot` ausführen.
-6. Den Backup-Stand von der externen Festplatte wiederherstellen, falls nötig.
-   Das Restore ist noch nicht automatisiert.
+6. Den Zustand (Grafana, Prometheus-Historie) aus dem Backup zurückspielen:
+   `ansible-playbook restore.yml -e force=true`. `force` ist hier nötig, weil
+   Grafana beim Erststart schon eine leere DB angelegt hat
+   ([`backup.md`](backup.md#wiederherstellen)).
 
 ## Rückgängig machen
 

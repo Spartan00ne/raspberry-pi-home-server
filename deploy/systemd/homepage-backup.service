@@ -1,7 +1,12 @@
 [Unit]
-Description=Backup der Homepage
+Description=Homepage: Zustand (Docker-Volumes) mit restic sichern
+Documentation=file:///home/simeon/homepage/docs/backup.md
+After=docker.service
 
 [Service]
 Type=oneshot
-User=simeon
+# root: Docker und die Volumes unter /var/lib/docker. Repository-Zugang aus
+# /etc/restic/env (Ansible, Rolle backup).
 ExecStart=/home/simeon/homepage/scripts/backup
+TimeoutStartSec=1h
+Nice=10

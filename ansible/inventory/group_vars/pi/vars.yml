@@ -11,7 +11,7 @@ ssh_authorized_keys:
 
 firewall_lan_cidr: 192.168.178.0/24
 
-# Ziel des täglichen Backups (scripts/backup). nofail: Der Pi startet auch ohne.
+# Ziel des täglichen Backups (Rolle backup). nofail: Der Pi startet auch ohne.
 base_external_drive:
   path: /mnt/external_drive
   src: UUID=903AD3723AD35436
@@ -24,3 +24,6 @@ app_secrets:
   telegram_bot_token: "{{ vault_telegram_bot_token }}"
   telegram_chat_id: "{{ vault_telegram_chat_id }}"
   grafana_admin_password: "{{ vault_grafana_admin_password }}"
+
+# Passwort des restic-Repositorys auf der externen Platte (Rolle backup)
+backup_password: "{{ vault_restic_password }}"

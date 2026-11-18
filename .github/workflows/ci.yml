@@ -140,6 +140,7 @@ jobs:
         run: |
           ansible-playbook -i tests/inventory --syntax-check site.yml
           ansible-playbook -i tests/inventory --syntax-check upgrade.yml
+          ansible-playbook -i tests/inventory --syntax-check restore.yml
 
       - name: Testcontainer starten (Debian trixie mit systemd)
         run: |

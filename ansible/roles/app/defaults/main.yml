@@ -14,8 +14,6 @@ app_github_host_key: github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0
 app_systemd_units:
   - deploy/systemd/homepage-deploy.service
   - deploy/systemd/homepage-deploy.timer
-  - deploy/systemd/homepage-backup.service
-  - deploy/systemd/homepage-backup.timer
   - deploy/systemd/homepage-status.service
   - deploy/systemd/homepage-status.timer
   - monitoring/systemd/pi-metrics.service

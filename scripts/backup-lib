@@ -1,0 +1,130 @@
+# shellcheck shell=bash
+# Gemeinsame Einstellungen und Hilfsfunktionen für scripts/backup,
+# scripts/restore und scripts/restore-test. Wird per "source" eingebunden.
+#
+# Die Zugangsdaten für das restic-Repository legt Ansible (Rolle backup) in
+# /etc/restic/env ab: RESTIC_REPOSITORY, RESTIC_PASSWORD_FILE, RESTIC_CACHE_DIR
+# und BACKUP_MOUNT. Die Skripte laufen deshalb als root.
+
+if [[ -z "${RESTIC_REPOSITORY:-}" && -r /etc/restic/env ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source /etc/restic/env
+  set +a
+fi
+
+# Docker-Volumes mit Zustand, der sich nicht aus Git und Ansible Vault neu
+# erzeugen lässt (Name im Backup -> Docker-Volume). Code, Konfiguration und
+# Secrets stellt Ansible wieder her und gehören nicht ins Backup.
+# shellcheck disable=SC2034  # wird in den einbindenden Skripten genutzt
+declare -A BACKUP_VOLUMES=(
+  [grafana]=monitoring_grafana-data
+  [prometheus]=monitoring_prometheus-data
+  [alertmanager]=monitoring_alertmanager-data
+)
+
+# Container, die diese Volumes beschreiben. Sie werden während Backup und
+# Restore kurz angehalten, damit SQLite-DB und TSDB konsistent sind.
+# shellcheck disable=SC2034
+BACKUP_CONTAINERS=(grafana prometheus alertmanager)
+
+# Alle Snapshots tragen diesen Hostnamen, damit "latest" eindeutig ist, auch
+# wenn der Pi nach einem Neuaufbau anders heißt.
+# shellcheck disable=SC2034
+BACKUP_HOST=raspberry-pi
+
+METRICS_DIR="${METRICS_DIR:-/run/pi-metrics}"
+BACKUP_STATE_DIR="${BACKUP_STATE_DIR:-/var/lib/homepage-backup}"
+LOG_TAG="${LOG_TAG:-backup}"
+
+log() { echo "[$LOG_TAG] $*"; }
+die() { echo "[$LOG_TAG] FEHLER: $*" >&2; exit 1; }
+
+volume_path() { echo "/var/lib/docker/volumes/$1/_data"; }
+
+# Repository erreichbar? Bricht ab, wenn die externe Platte nicht eingehängt
+# ist – sonst würde restic still auf die SD-Karte schreiben.
+require_repo() {
+  [[ -n "${RESTIC_REPOSITORY:-}" ]] || die "RESTIC_REPOSITORY fehlt (/etc/restic/env, Rolle backup)"
+  [[ -n "${RESTIC_PASSWORD_FILE:-}" ]] || die "RESTIC_PASSWORD_FILE fehlt"
+  if [[ -n "${BACKUP_MOUNT:-}" ]] && ! mountpoint -q "$BACKUP_MOUNT"; then
+    die "$BACKUP_MOUNT ist nicht eingehängt"
+  fi
+  restic cat config > /dev/null || die "restic-Repository $RESTIC_REPOSITORY nicht lesbar"
+}
+
+# Backup, Restore und Restore-Test laufen nie gleichzeitig. Ruft ein Skript ein
+# anderes auf (restore -> backup), hält es die Sperre schon.
+take_lock() {
+  [[ -n "${BACKUP_LOCK_HELD:-}" ]] && return 0
+  exec 9> /run/homepage-backup.lock
+  flock 9
+  export BACKUP_LOCK_HELD=1
+}
+
+# Merkt sich, welche der Container laufen, und hält sie an.
+STOPPED_CONTAINERS=()
+stop_containers() {
+  local c
+  for c in "${BACKUP_CONTAINERS[@]}"; do
+    if [[ "$(docker inspect -f '{{.State.Running}}' "$c" 2> /dev/null)" == true ]]; then
+      STOPPED_CONTAINERS+=("$c")
+    fi
+  done
+  if (( ${#STOPPED_CONTAINERS[@]} )); then
+    log "Halte Container an: ${STOPPED_CONTAINERS[*]}"
+    # 60 s, damit Prometheus die TSDB sauber schließen kann.
+    docker stop -t 60 "${STOPPED_CONTAINERS[@]}" > /dev/null
+  fi
+}
+
+# Startet genau die Container wieder, die stop_containers angehalten hat.
+# Wird auch aus traps aufgerufen und darf deshalb nicht abbrechen.
+start_containers() {
+  if (( ${#STOPPED_CONTAINERS[@]} )); then
+    log "Starte Container wieder: ${STOPPED_CONTAINERS[*]}"
+    docker start "${STOPPED_CONTAINERS[@]}" > /dev/null || log "FEHLER: Container ließen sich nicht starten"
+    STOPPED_CONTAINERS=()
+  fi
+}
+
+# write_metrics <name> <präfix> <erfolg 0|1> <dauer in s>
+# Schreibt <präfix>_success, _last_run_timestamp_seconds,
+# _last_success_timestamp_seconds und _duration_seconds. Die Datei liegt
+# dauerhaft in $BACKUP_STATE_DIR (der letzte Erfolg überlebt so einen
+# Neustart) und als Kopie im Textfile-Verzeichnis des node_exporters, das im
+# RAM liegt. Nach einem Neustart kopiert tmpfiles.d sie dorthin zurück.
+write_metrics() {
+  local name="$1" prefix="$2" success="$3" duration="$4"
+  local state="$BACKUP_STATE_DIR/$name.prom" now last_success tmp
+  now="$(date +%s)"
+  last_success="$(awk -v m="${prefix}_last_success_timestamp_seconds" '$1 == m { print $2 }' "$state" 2> /dev/null || true)"
+  [[ "$success" == 1 ]] && last_success="$now"
+
+  mkdir -p "$BACKUP_STATE_DIR"
+  tmp="$(mktemp "$BACKUP_STATE_DIR/.$name.prom.XXXXXX")"
+  {
+    echo "# HELP ${prefix}_success 1, wenn der letzte Lauf erfolgreich war."
+    echo "# TYPE ${prefix}_success gauge"
+    echo "${prefix}_success $success"
+    echo "# HELP ${prefix}_last_run_timestamp_seconds Zeitpunkt des letzten Laufs."
+    echo "# TYPE ${prefix}_last_run_timestamp_seconds gauge"
+    echo "${prefix}_last_run_timestamp_seconds $now"
+    if [[ -n "$last_success" ]]; then
+      echo "# HELP ${prefix}_last_success_timestamp_seconds Zeitpunkt des letzten erfolgreichen Laufs."
+      echo "# TYPE ${prefix}_last_success_timestamp_seconds gauge"
+      echo "${prefix}_last_success_timestamp_seconds $last_success"
+    fi
+    echo "# HELP ${prefix}_duration_seconds Dauer des letzten Laufs."
+    echo "# TYPE ${prefix}_duration_seconds gauge"
+    echo "${prefix}_duration_seconds $duration"
+  } > "$tmp"
+  chmod 644 "$tmp"
+  mv "$tmp" "$state"
+
+  if [[ -d "$METRICS_DIR" ]]; then
+    cp "$state" "$METRICS_DIR/.$name.prom.tmp" && mv "$METRICS_DIR/.$name.prom.tmp" "$METRICS_DIR/$name.prom"
+  else
+    log "WARN: $METRICS_DIR fehlt, Metrik nur in $state"
+  fi
+}

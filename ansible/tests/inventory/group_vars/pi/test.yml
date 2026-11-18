@@ -7,9 +7,13 @@ vault_tunnel_token: ci-dummy-tunnel-token
 vault_telegram_bot_token: "123456:ci-dummy\n"
 vault_telegram_chat_id: "1"
 vault_grafana_admin_password: ci-dummy-password
+vault_restic_password: ci-dummy-restic-password
 
 # Öffentlicher HTTPS-Klon statt Deploy-Key
 app_repo_url: https://github.com/Spartan00ne/raspberry-pi-home-server.git
 
 # Timer nur aktivieren, keine Stacks starten (kein Tunnel, keine Secrets)
 app_start_services: false
+
+# Keine externe Platte: kein restic-Repository anlegen
+backup_init_repo: false

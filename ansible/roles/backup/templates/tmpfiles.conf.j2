@@ -1,0 +1,7 @@
+# {{ ansible_managed }} (Rolle backup)
+# Die Backup-Metriken liegen dauerhaft unter /var/lib/homepage-backup. Das
+# Textfile-Verzeichnis des node_exporters liegt im RAM; nach einem Neustart
+# werden sie dorthin kopiert, damit der letzte Erfolg nicht verloren geht.
+d /run/pi-metrics 0755 {{ backup_metrics_owner }} {{ backup_metrics_owner }} -
+C /run/pi-metrics/backup.prom - - - - /var/lib/homepage-backup/backup.prom
+C /run/pi-metrics/restore-test.prom - - - - /var/lib/homepage-backup/restore-test.prom
