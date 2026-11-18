@@ -108,8 +108,8 @@ Daraus entstehen zwei Alarme (Telegram):
   aus Pull Requests läuft nur auf den GitHub-Runnern, nie auf dem Pi.
 - Der CI-Job hat nur Leserechte; Schreibrecht auf Pakete bekommt nur der
   Image-Job, und gepusht wird nur von `main`.
-- Wer auf `main` pushen kann, kann Code auf dem Pi ausführen. Deshalb sollte
-  `main` per Branch-Schutz abgesichert sein (siehe unten).
+- Wer auf `main` pushen kann, kann Code auf dem Pi ausführen. Deshalb ist
+  `main` per Ruleset geschützt, siehe [Branch-Schutz](#branch-schutz-für-main).
 - Das GHCR-Image ist öffentlich, so braucht der Pi kein Registry-Passwort. Es
   enthält nur den öffentlichen Code dieses Repos.
 
@@ -137,9 +137,39 @@ Einmalig auf GitHub:
 1. Prüfen, ob das Image öffentlich ist: `docker pull ghcr.io/spartan00ne/raspberry-pi-home-server/dashboard-api:main`
    ohne Login. Bei diesem Repo war es das automatisch; sonst unter
    *Profil → Packages → dashboard-api → Package settings* auf **Public** stellen.
-2. Unter *Settings → Branches* für `main` eine Regel anlegen: Pull Request
-   oder zumindest grüne CI (Status-Check „CI“) vor dem Merge verlangen,
-   kein Force-Push.
+2. `main` per Ruleset absichern, siehe [Branch-Schutz](#branch-schutz-für-main).
+
+## Branch-Schutz für `main`
+
+*Settings → Rules → Rulesets → New branch ruleset*:
+
+| Einstellung | Wert | Warum |
+|---|---|---|
+| Enforcement status | Active | |
+| Target branches | Default branch (`main`) | |
+| Bypass list | Deploy keys, Repository admin | Der Pi pusht direkt auf `main` (siehe unten); Admin für Notfälle |
+| Restrict deletions | an | `main` kann nicht gelöscht werden |
+| Block force pushes | an | Historie bleibt linear; das Deploy-Skript lehnt nicht lineare Stände ab |
+| Require a pull request before merging | an, 0 Approvals | Alle Änderungen außer vom Pi laufen über einen PR mit CI. 0 Approvals, weil eigene PRs nicht freigegeben werden können |
+| Require status checks to pass | `Lint`, `Konfiguration prüfen`, `Image bauen (arm64)` | Nur geprüfte Änderungen kommen auf `main` |
+| Require branches to be up to date | an | Jeder PR wird gegen den aktuellen Stand von `main` getestet |
+
+**Warum der Deploy-Key eine Ausnahme hat:** Der Pi committet und pusht direkt.
+Ein Commit, der gerade gepusht wird, hat noch keine CI-Ergebnisse; mit
+verpflichtenden Checks würde GitHub den Push ablehnen. Die Ausnahme schwächt
+den Schutz nicht wesentlich: `scripts/deploy` rollt trotzdem nur Commits mit
+grüner CI aus, und der Deploy-Key gilt nur für dieses eine Repo.
+
+Folgen für den Alltag:
+
+- Dependabot-PRs lassen sich erst mergen, wenn alle drei Checks grün sind.
+- Nach einem Merge müssen andere offene PRs aktualisiert werden
+  (*Update branch* bzw. Kommentar `@dependabot rebase`), dann läuft ihre CI neu.
+- Prüfen: Ein `git push --force` auf `main` muss abgelehnt werden.
+
+Der Schutz ist nur so stark wie das GitHub-Konto, denn ein Admin kann das
+Ruleset abschalten. Deshalb ist für das Konto Zwei-Faktor-Authentifizierung
+(Passkey oder Authenticator-App) aktiv.
 
 ## Betrieb
 
