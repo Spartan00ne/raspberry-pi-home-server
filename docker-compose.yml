@@ -1,6 +1,6 @@
 services:
   nginx-homepage:
-    image: nginx:1.31.3
+    image: nginx:1.31.8
     container_name: nginx-homepage
     restart: unless-stopped
     expose:
