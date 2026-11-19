@@ -23,7 +23,7 @@ Leck öffnen.
                    ├─ grafana, prometheus anhalten (ca. 30 s)
                    ├─ restic backup  ──────────────►  /mnt/external_drive/restic
                    ├─ Container wieder starten          (verschlüsselt, dedupliziert)
-                   ├─ restic forget (7 täglich, 4 wöchentlich, 6 monatlich; sonntags prune)
+                   ├─ restic forget je Tag (7 täglich, 4 wöchentlich, 6 monatlich; sonntags prune)
                    └─ Metrik homepage_backup_*
 
 So 04:00        homepage-restore-test.timer
@@ -65,6 +65,10 @@ So 04:00        homepage-restore-test.timer
   genommen: Bei Diebstahl, Brand oder Überspannung sind Pi und Backup
   gleichzeitig weg. Verloren wäre dann nur die Monitoring-Historie, alles
   andere kommt aus Git und Vault.
+- **Aufbewahrung getrennt nach Tag** (`--group-by host,paths,tags`): Reguläre
+  (`auto`) und `pre-restore`-Snapshots werden getrennt ausgedünnt. Beim ersten
+  Restore-Probelauf hat der `pre-restore`-Snapshot als neuester des Tages den
+  regulären Snapshot verdrängt, aus dem gerade zurückgespielt worden war.
 - **Kein automatisches Zurückspielen**: Ein Restore überschreibt Daten und
   wird immer bewusst ausgelöst.
 
