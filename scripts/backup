@@ -7,7 +7,8 @@
 #
 # Ablauf:
 #   1. Prüfen, ob die externe Platte eingehängt und das Repository lesbar ist.
-#   2. Monitoring-Container kurz anhalten (konsistente SQLite-DB und TSDB).
+#   2. Grafana und Prometheus kurz anhalten (konsistente SQLite-DB und TSDB).
+#      Der Alertmanager läuft weiter, damit keine Alarme verloren gehen.
 #      Ein trap startet sie in jedem Fall wieder.
 #   3. restic backup, danach die Container sofort wieder starten.
 #   4. Alte Snapshots ausdünnen: 7 tägliche, 4 wöchentliche, 6 monatliche;
@@ -49,7 +50,7 @@ for name in "${!BACKUP_VOLUMES[@]}"; do
   paths+=("$dir")
 done
 
-stop_containers
+stop_containers "${BACKUP_STOP_CONTAINERS[@]}"
 restic backup --host "$BACKUP_HOST" --tag "$TAG" "${paths[@]}"
 start_containers
 

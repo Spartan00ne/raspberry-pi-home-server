@@ -23,10 +23,17 @@ declare -A BACKUP_VOLUMES=(
   [alertmanager]=monitoring_alertmanager-data
 )
 
-# Container, die diese Volumes beschreiben. Sie werden während Backup und
-# Restore kurz angehalten, damit SQLite-DB und TSDB konsistent sind.
+# Container, die diese Volumes beschreiben. Ein Restore hält alle an, weil er
+# ihre Daten ersetzt.
 # shellcheck disable=SC2034
 BACKUP_CONTAINERS=(grafana prometheus alertmanager)
+
+# Das Backup hält nur die an, deren Daten im laufenden Betrieb inkonsistent
+# wären (SQLite-DB, TSDB). Der Alertmanager läuft weiter: Er schreibt nflog
+# und silences atomar, und ein Neustart würde Alarme im Speicher und noch
+# nicht versendete Nachrichten verwerfen.
+# shellcheck disable=SC2034
+BACKUP_STOP_CONTAINERS=(grafana prometheus)
 
 # Alle Snapshots tragen diesen Hostnamen, damit "latest" eindeutig ist, auch
 # wenn der Pi nach einem Neuaufbau anders heißt.
@@ -62,11 +69,11 @@ take_lock() {
   export BACKUP_LOCK_HELD=1
 }
 
-# Merkt sich, welche der Container laufen, und hält sie an.
+# stop_containers <name>...: Merkt sich, welche davon laufen, und hält sie an.
 STOPPED_CONTAINERS=()
 stop_containers() {
   local c
-  for c in "${BACKUP_CONTAINERS[@]}"; do
+  for c in "$@"; do
     if [[ "$(docker inspect -f '{{.State.Running}}' "$c" 2> /dev/null)" == true ]]; then
       STOPPED_CONTAINERS+=("$c")
     fi
