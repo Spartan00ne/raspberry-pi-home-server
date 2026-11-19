@@ -20,7 +20,7 @@ Leck öffnen.
 03:00 täglich   homepage-backup.timer
                 └─ scripts/backup
                    ├─ Platte eingehängt? Repository lesbar?
-                   ├─ grafana, prometheus, alertmanager anhalten (ca. 30 s)
+                   ├─ grafana, prometheus anhalten (ca. 30 s)
                    ├─ restic backup  ──────────────►  /mnt/external_drive/restic
                    ├─ Container wieder starten          (verschlüsselt, dedupliziert)
                    ├─ restic forget (7 täglich, 4 wöchentlich, 6 monatlich; sonntags prune)
@@ -48,6 +48,13 @@ So 04:00        homepage-restore-test.timer
   Lücke von etwa 30 s um 03:00 ist für einen Homeserver unkritisch, und die
   Alarme (`ContainerAusgefallen` erst nach 2 min) schlagen nicht an. Ein
   `trap` startet die Container in jedem Fall wieder.
+- **Der Alertmanager läuft während des Backups weiter.** Er schreibt seine
+  Dateien (`nflog`, `silences`) atomar, sie lassen sich also im laufenden
+  Betrieb sichern. Ein Neustart würde dagegen die Alarme in seinem Speicher und
+  noch nicht versendete Nachrichten verwerfen. Das ist beim ersten Live-Test
+  passiert: Eine Fehlermeldung, die noch in `group_wait` hing, und eine
+  Entwarnung kamen nie an. Läuft er weiter, verschickt er Entwarnungen auch für
+  Alarme, die Prometheus nach seinem Neustart nicht mehr kennt.
 - **Ein gemeinsamer Restore-Pfad**: `scripts/restore` wird vom wöchentlichen
   Test und vom Ernstfall genutzt. Ein grüner Test belegt also genau den Weg,
   der im Notfall läuft.

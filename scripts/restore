@@ -93,7 +93,7 @@ restore_live() {
     "$SCRIPT_DIR/backup" pre-restore
   fi
 
-  stop_containers
+  stop_containers "${BACKUP_CONTAINERS[@]}"
   for name in "${!BACKUP_VOLUMES[@]}"; do
     log "Ersetze Volume ${BACKUP_VOLUMES[$name]}"
     rsync -a --delete --numeric-ids "$WORKDIR/data/$name/" "$(volume_path "${BACKUP_VOLUMES[$name]}")/"
