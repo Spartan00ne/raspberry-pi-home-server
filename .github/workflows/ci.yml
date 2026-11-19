@@ -32,6 +32,18 @@ jobs:
       - name: ShellCheck (scripts/)
         run: shellcheck scripts/*
 
+      # systemd startet die Skripte direkt; ohne Ausführungsrecht schlägt die
+      # Unit mit 203/EXEC fehl, bevor das Skript eine Metrik schreiben kann.
+      - name: Skripte sind ausführbar
+        run: |
+          rc=0
+          for f in scripts/*; do
+            [[ "$f" == *-lib ]] && continue
+            mode=$(git ls-files -s "$f" | cut -c1-6)
+            [[ "$mode" == 100755 ]] || { echo "::error file=$f::nicht ausführbar ($mode)"; rc=1; }
+          done
+          exit $rc
+
       - name: Ruff (Python-API)
         run: pipx run ruff==0.17.5 check --no-cache api
 
