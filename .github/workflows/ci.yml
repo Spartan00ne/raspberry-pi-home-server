@@ -48,7 +48,7 @@ jobs:
         run: pipx run ruff==0.17.5 check --no-cache api
 
       - name: Hadolint (Dockerfile)
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.5.0
         with:
           dockerfile: api/Dockerfile
 
