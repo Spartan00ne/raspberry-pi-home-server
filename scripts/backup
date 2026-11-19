@@ -57,7 +57,7 @@ start_containers
 # --group-by ...,tags: Jeder Tag hat seine eigene Aufbewahrung. Sonst wäre ein
 # pre-restore-Snapshot der neueste des Tages und würde den regulären Snapshot
 # verdrängen, aus dem gerade zurückgespielt wurde.
-forget_args=(--host "$BACKUP_HOST" --group-by host,paths,tags
+forget_args=(--host "$BACKUP_HOST" --group-by "host,paths,tags"
              --keep-daily 7 --keep-weekly 4 --keep-monthly 6)
 if [[ "$(date +%u)" == 7 ]]; then
   forget_args+=(--prune)
