@@ -1,0 +1,4 @@
+# Damit systemd die Mount-Unit (mnt-data.mount) aus der neuen fstab erzeugt.
+- name: Systemd neu einlesen
+  ansible.builtin.systemd_service:
+    daemon_reload: true

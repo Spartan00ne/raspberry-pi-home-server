@@ -11,12 +11,9 @@ ssh_authorized_keys:
 
 firewall_lan_cidr: 192.168.178.0/24
 
-# Ziel des täglichen Backups (Rolle backup). nofail: Der Pi startet auch ohne.
-base_external_drive:
-  path: /mnt/external_drive
-  src: UUID=903AD3723AD35436
-  fstype: ntfs-3g
-  opts: uid=1000,gid=1000,umask=022,nofail,x-systemd.device-timeout=10
+# Externe 500-GB-Platte (ext4) mit Cloud-Speicher und Monitoring-Backup
+# (Rolle storage, docs/backup.md#platte).
+storage_uuid: c290a282-60db-4841-96b5-0b6401dbaa92
 
 # Secrets für die Anwendung (Werte aus dem Vault)
 app_tunnel_token: "{{ vault_tunnel_token }}"

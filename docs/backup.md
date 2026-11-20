@@ -21,7 +21,7 @@ Leck öffnen.
                 └─ scripts/backup
                    ├─ Platte eingehängt? Repository lesbar?
                    ├─ grafana, prometheus anhalten (ca. 30 s)
-                   ├─ restic backup  ──────────────►  /mnt/external_drive/restic
+                   ├─ restic backup  ──────────────►  /mnt/data/restic-monitoring
                    ├─ Container wieder starten          (verschlüsselt, dedupliziert)
                    ├─ restic forget je Tag (7 täglich, 4 wöchentlich, 6 monatlich; sonntags prune)
                    └─ Metrik homepage_backup_*
@@ -40,9 +40,9 @@ So 04:00        homepage-restore-test.timer
 
 ## Entscheidungen
 
-- **restic** statt rsync: verschlüsselt (die Platte ist NTFS, dort sind alle
-  Dateien für jeden lesbar, und die Grafana-DB enthält Passwort-Hashes),
-  dedupliziert, mit Snapshots und eingebauter Integritätsprüfung.
+- **restic** statt rsync: verschlüsselt (die Grafana-DB enthält
+  Passwort-Hashes, und eine abgezogene USB-Platte ist an jedem Rechner
+  lesbar), dedupliziert, mit Snapshots und eingebauter Integritätsprüfung.
 - **Container kurz anhalten** statt Snapshot-APIs: Eine SQLite-DB oder TSDB im
   laufenden Betrieb zu kopieren, kann ein inkonsistentes Backup ergeben. Eine
   Lücke von etwa 30 s um 03:00 ist für einen Homeserver unkritisch, und die
@@ -71,6 +71,67 @@ So 04:00        homepage-restore-test.timer
   regulären Snapshot verdrängt, aus dem gerade zurückgespielt worden war.
 - **Kein automatisches Zurückspielen**: Ein Restore überschreibt Daten und
   wird immer bewusst ausgelöst.
+
+## Platte
+
+Die externe 500-GB-Platte ist mit ext4 auf einer einzigen Partition (GPT)
+formatiert und unter `/mnt/data` eingehängt. Sie hat zwei Bereiche:
+
+| Bereich | Inhalt | Rechte |
+|---|---|---|
+| `/mnt/data/cloud` | Daten des Cloud-Speichers (ab Phase 3, #20) | root, 0750 |
+| `/mnt/data/restic-monitoring` | restic-Repository des Monitorings | root, 0700 |
+
+Die Rolle `storage` ([`ansible/roles/storage`](../ansible/roles/storage))
+hängt die Platte per UUID ein (`storage_uuid` in der Inventory) und legt die
+Bereiche an. Sie formatiert nie selbst.
+
+- **`nofail`**: Der Pi startet auch ohne Platte. Dann liegt unter `/mnt/data`
+  nur das leere Verzeichnis auf der SD-Karte. `scripts/backup-lib` bricht in
+  diesem Fall ab (`mountpoint`), und der Alarm `PlatteNichtEingehaengt` meldet sich.
+- **Reservierte Blöcke bleiben** (5 %, ext4-Standard): Läuft die Platte durch
+  Uploads voll, kann root (das Backup) trotzdem noch schreiben. Der Füllstand
+  wird wie bei `df` ohne diese Blöcke gerechnet, 100 % heißt also: Nur root
+  kann noch schreiben.
+- Füllstand und eine lineare Prognose, wann die Platte voll ist, zeigt das
+  Grafana-Dashboard „Cloud-Speicher“. Alarme ab 80 % und 90 %
+  ([Monitoring](../monitoring/README.md#alarme)).
+
+Bis November 2026 war die Platte NTFS (`/mnt/external_drive`). Umgezogen
+wurde so, wie auch ein späterer Wechsel abläuft:
+
+### Umzug auf eine andere Platte
+
+```bash
+# 1. Repository auf die SD-Karte kopieren und die Kopie prüfen
+sudo rsync -a /mnt/data/restic-monitoring/ /var/tmp/restic-umzug/
+sudo env RESTIC_REPOSITORY=/var/tmp/restic-umzug RESTIC_PASSWORD_FILE=/etc/restic/password \
+  restic check --read-data
+
+# 2. Neue Platte anschließen, Gerät prüfen (lsblk), eine Partition, ext4
+printf 'label: gpt\n,,L\n' | sudo sfdisk /dev/sdX
+sudo mkfs.ext4 -L data /dev/sdX1
+sudo blkid /dev/sdX1                    # UUID
+
+# 3. UUID in ansible/inventory/group_vars/pi/vars.yml (storage_uuid) eintragen
+cd ansible && ansible-playbook site.yml --tags storage
+
+# 4. Zurückkopieren, prüfen, Backup und Restore-Test auslösen
+sudo rsync -a --chown=root:root /var/tmp/restic-umzug/ /mnt/data/restic-monitoring/
+ansible-playbook site.yml --tags storage,backup   # Rechte und Pfad
+sudo sh -c 'set -a; . /etc/restic/env; restic check --read-data'
+sudo systemctl start homepage-backup.service homepage-restore-test.service
+ansible-playbook site.yml --check                 # changed=0
+sudo rm -rf /var/tmp/restic-umzug                 # erst wenn alles grün ist
+```
+
+Die Prognose im Dashboard rechnet mit dem Trend der letzten 7 Tage. Nach
+einem Umzug ist sie erst nach einigen Tagen aussagekräftig.
+
+Bei einem Wechsel kommen später die Daten des Cloud-Speichers dazu (Bereich
+`cloud`). Bei einem Neuformatieren derselben Platte muss vor dem Aushängen
+alles gestoppt sein, was die Platte nutzt (`sudo fuser -vm /mnt/data`), z. B.
+`dashboard-api` mit seinem Bind-Mount.
 
 ## Einrichtung
 
@@ -111,6 +172,8 @@ letzte Erfolg nicht verloren geht.
 | BackupVeraltet | Seit über 26 h kein erfolgreiches Backup (oder noch nie) |
 | RestoreTestFehlgeschlagen | Letzter Restore-Test fehlgeschlagen |
 | RestoreTestVeraltet | Seit über 8 Tagen kein erfolgreicher Restore-Test (oder noch nie) |
+| PlatteNichtEingehaengt | Unter `/mnt/data` ist keine Platte eingehängt (5 min) |
+| PlatteFuellstandHoch / -Kritisch | Platte über 80 % (10 min) / 90 % (5 min) belegt |
 
 ## Wiederherstellen
 

@@ -1,0 +1,442 @@
+{
+  "uid": "cloud-speicher",
+  "title": "Cloud-Speicher",
+  "description": "Externe Platte unter /mnt/data mit den Daten des Cloud-Speichers und dem Monitoring-Backup: Füllstand und lineare Prognose, wann sie voll ist.",
+  "tags": [
+    "raspberry-pi",
+    "prometheus",
+    "cloud-speicher"
+  ],
+  "timezone": "browser",
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "1m",
+      "5m",
+      "15m"
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Platte eingehängt",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(node_filesystem_size_bytes{mountpoint=\"/mnt/data\"}) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Nein",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Ja",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Ob unter /mnt/data ein Dateisystem eingehängt ist (Alarm PlatteNichtEingehaengt)."
+    },
+    {
+      "id": 2,
+      "type": "gauge",
+      "title": "Füllstand",
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 4,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Belegt wie bei df: belegt / (belegt + verfügbar). Die 5 % für root reservierten Blöcke zählen nicht mit. Alarme ab 80 % und 90 %.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/mnt/data\"} / (node_filesystem_size_bytes{mountpoint=\"/mnt/data\"} - node_filesystem_free_bytes{mountpoint=\"/mnt/data\"} + node_filesystem_avail_bytes{mountpoint=\"/mnt/data\"}))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showThresholdMarkers": true,
+        "showThresholdLabels": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Belegt",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 9,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_filesystem_size_bytes{mountpoint=\"/mnt/data\"} - node_filesystem_free_bytes{mountpoint=\"/mnt/data\"}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 1,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Frei",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 13,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_filesystem_avail_bytes{mountpoint=\"/mnt/data\"}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 1,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Für Nicht-root-Prozesse verfügbar (ohne die reservierten Blöcke)."
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Voll in (lineare Prognose)",
+      "gridPos": {
+        "h": 5,
+        "w": 7,
+        "x": 17,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_filesystem_avail_bytes{mountpoint=\"/mnt/data\"} / (-deriv(node_filesystem_avail_bytes{mountpoint=\"/mnt/data\"}[7d]) > 0) / 86400",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "decimals": 0,
+          "noValue": "kein Wachstum",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 30
+              },
+              {
+                "color": "green",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Freier Platz geteilt durch das Wachstum der letzten 7 Tage (lineare Regression). Leer, solange der freie Platz nicht abnimmt. Braucht Messwerte über einige Tage, direkt nach einem Plattenwechsel ist die Prognose ungenau."
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Füllstand mit Prognose",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Belegt in Prozent und der Wert, der bei gleichbleibendem Wachstum (Trend der letzten 7 Tage) in 30 bzw. 90 Tagen erreicht wäre. Braucht Messwerte über einige Tage, direkt nach einem Plattenwechsel ist die Prognose ungenau.",
+      "maxDataPoints": 200,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/mnt/data\"} / (node_filesystem_size_bytes{mountpoint=\"/mnt/data\"} - node_filesystem_free_bytes{mountpoint=\"/mnt/data\"} + node_filesystem_avail_bytes{mountpoint=\"/mnt/data\"}))",
+          "legendFormat": "Belegt"
+        },
+        {
+          "refId": "B",
+          "expr": "100 * (1 - predict_linear(node_filesystem_avail_bytes{mountpoint=\"/mnt/data\"}[7d], 30 * 86400) / (node_filesystem_size_bytes{mountpoint=\"/mnt/data\"} - node_filesystem_free_bytes{mountpoint=\"/mnt/data\"} + node_filesystem_avail_bytes{mountpoint=\"/mnt/data\"}))",
+          "legendFormat": "Prognose in 30 Tagen"
+        },
+        {
+          "refId": "C",
+          "expr": "100 * (1 - predict_linear(node_filesystem_avail_bytes{mountpoint=\"/mnt/data\"}[7d], 90 * 86400) / (node_filesystem_size_bytes{mountpoint=\"/mnt/data\"} - node_filesystem_free_bytes{mountpoint=\"/mnt/data\"} + node_filesystem_avail_bytes{mountpoint=\"/mnt/data\"}))",
+          "legendFormat": "Prognose in 90 Tagen"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": true,
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Belegt"
+            },
+            "properties": [
+              {
+                "id": "custom.fillOpacity",
+                "value": 15
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "Prognose.*"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    }
+  ]
+}

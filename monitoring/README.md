@@ -35,6 +35,13 @@ Kernspannung) für den Textfile-Collector des node-exporters. Die Datei liegt in
 `/run/pi-metrics` im RAM, damit die SD-Karte nicht dauernd beschrieben wird.
 Gestartet wird das Skript von [`systemd/pi-metrics.timer`](systemd/pi-metrics.timer).
 
+## Dashboards
+
+| Dashboard | Inhalt |
+|---|---|
+| [Raspberry Pi – Live-Monitoring](grafana/dashboards/raspberry-pi.json) | Startseite: CPU, RAM, Temperatur, Container, Website |
+| [Cloud-Speicher](grafana/dashboards/cloud-speicher.json) | Externe Platte `/mnt/data`: eingehängt, Füllstand, frei, lineare Prognose, wann sie voll ist (Trend der letzten 7 Tage) |
+
 ## Alarme
 
 Definiert in [`prometheus/rules/alerts.yml`](prometheus/rules/alerts.yml):
@@ -45,7 +52,9 @@ Definiert in [`prometheus/rules/alerts.yml`](prometheus/rules/alerts.yml):
 | PiUnterspannung | Netzteil liefert zu wenig Spannung | critical |
 | PiGedrosselt | CPU wird gedrosselt (5 min) | warning |
 | PiMetrikenVeraltet | `pi-metrics.timer` liefert keine Daten | warning |
-| SpeicherplatzKnapp / -Kritisch | Dateisystem > 85 % / > 95 % | warning / critical |
+| SpeicherplatzKnapp / -Kritisch | Dateisystem > 85 % / > 95 % (außer `/mnt/data`) | warning / critical |
+| PlatteFuellstandHoch / -Kritisch | Externe Platte `/mnt/data` > 80 % (10 min) / > 90 % (5 min), gerechnet wie `df` ([Backup](../docs/backup.md#platte)) | warning / critical |
+| PlatteNichtEingehaengt | Unter `/mnt/data` ist nichts eingehängt (5 min) | critical |
 | ArbeitsspeicherKnapp | RAM > 90 % (10 min) | warning |
 | CpuDauerlast | Last > 1,5 × Kerne (15 min) | warning |
 | PiNeugestartet | Laufzeit < 10 min | info |
@@ -83,7 +92,7 @@ cAdvisor aus, kommen keine Fehlmeldungen für alle Container.
 - **Grafana öffentlich nur lesend.** Besucher sind anonyme Viewer. Die Login-Seite
   ist über nginx von außen gesperrt, Basic-Auth über die API ist abgeschaltet.
   Anmelden kann man sich nur lokal über einen SSH-Tunnel.
-- **Dashboards as Code.** Datenquelle und Dashboard werden aus
+- **Dashboards as Code.** Datenquelle und Dashboards werden aus
   [`grafana/`](grafana/) provisioniert; Änderungen in der Oberfläche werden nicht
   gespeichert.
 - **Feste Image-Versionen** statt `latest`, damit Updates bewusst passieren.

@@ -1,0 +1,24 @@
+# Externe Platte (ext4) für den Cloud-Speicher und das Monitoring-Backup
+# (siehe docs/backup.md#platte).
+
+# Mountpunkt. Er hat nur diesen Zweck.
+storage_mount: /mnt/data
+
+# UUID des ext4-Dateisystems (Pflicht, aus der Inventory). Ein Wechsel auf
+# eine größere Platte heißt: kopieren und hier die UUID tauschen.
+# storage_uuid: ...
+
+# nofail: Der Pi startet auch ohne Platte. Dann fehlt der Mount, und der Alarm
+# PlatteNichtEingehaengt meldet sich.
+storage_opts: defaults,noatime,nofail,x-systemd.device-timeout=10s
+
+# Bereiche auf der Platte (Verzeichnisse unter storage_mount).
+storage_areas:
+  - name: cloud              # Daten des Cloud-Speichers
+    mode: "0750"
+  - name: restic-monitoring  # restic-Repository des Monitorings (Rolle backup)
+    mode: "0700"
+
+# Früherer Mountpunkt der NTFS-Platte; wird aus /etc/fstab entfernt.
+storage_old_mounts:
+  - /mnt/external_drive

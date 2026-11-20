@@ -41,8 +41,9 @@ groups:
           summary: "Pi-Metriken werden nicht aktualisiert"
           description: "Der Timer pi-metrics.timer läuft vermutlich nicht. Prüfen mit: systemctl status pi-metrics.timer"
 
+      # /mnt/data hat eigene Schwellen (Gruppe platte).
       - alert: SpeicherplatzKnapp
-        expr: 100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|devtmpfs|overlay|squashfs|ramfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|devtmpfs|overlay|squashfs|ramfs"}) > 85
+        expr: 100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|devtmpfs|overlay|squashfs|ramfs", mountpoint!="/mnt/data"} / node_filesystem_size_bytes{fstype!~"tmpfs|devtmpfs|overlay|squashfs|ramfs", mountpoint!="/mnt/data"}) > 85
         for: 10m
         labels: {severity: warning}
         annotations:
@@ -50,7 +51,7 @@ groups:
           description: "Alte Docker-Images oder Logs aufräumen: docker system prune"
 
       - alert: SpeicherplatzKritisch
-        expr: 100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|devtmpfs|overlay|squashfs|ramfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|devtmpfs|overlay|squashfs|ramfs"}) > 95
+        expr: 100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|devtmpfs|overlay|squashfs|ramfs", mountpoint!="/mnt/data"} / node_filesystem_size_bytes{fstype!~"tmpfs|devtmpfs|overlay|squashfs|ramfs", mountpoint!="/mnt/data"}) > 95
         for: 5m
         labels: {severity: critical}
         annotations:
@@ -79,6 +80,39 @@ groups:
         annotations:
           summary: "Der Raspberry Pi wurde neu gestartet"
           description: "Laufzeit unter 10 Minuten."
+
+  # Externe Platte unter /mnt/data: Cloud-Speicher und Monitoring-Backup
+  # (docs/backup.md). Belegt wie bei df: belegt / (belegt + verfügbar). Die 5 %
+  # für root reservierten Blöcke zählen nicht mit; sie bleiben als Puffer für
+  # das Backup frei. Bei 100 % kann nur noch root schreiben.
+  - name: platte
+    rules:
+      - alert: PlatteFuellstandHoch
+        expr: 100 * (1 - node_filesystem_avail_bytes{mountpoint="/mnt/data"} / (node_filesystem_size_bytes{mountpoint="/mnt/data"} - node_filesystem_free_bytes{mountpoint="/mnt/data"} + node_filesystem_avail_bytes{mountpoint="/mnt/data"})) > 80
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Platte zu {{ $value | printf \"%.0f\" }} % belegt"
+          description: "Auf /mnt/data liegen die Daten des Cloud-Speichers und das Monitoring-Backup. Aufräumen oder eine größere Platte planen (Dashboard Cloud-Speicher, Prognose)."
+
+      - alert: PlatteFuellstandKritisch
+        expr: 100 * (1 - node_filesystem_avail_bytes{mountpoint="/mnt/data"} / (node_filesystem_size_bytes{mountpoint="/mnt/data"} - node_filesystem_free_bytes{mountpoint="/mnt/data"} + node_filesystem_avail_bytes{mountpoint="/mnt/data"})) > 90
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "Platte zu {{ $value | printf \"%.0f\" }} % belegt"
+          description: "Der Cloud-Speicher nimmt bald keine Uploads mehr an. Jetzt aufräumen oder auf eine größere Platte umziehen (docs/backup.md)."
+
+      # Ohne Mount liegt unter /mnt/data nur das leere Verzeichnis auf der
+      # SD-Karte. Ist der node-exporter selbst weg, meldet das
+      # ZielNichtErreichbar.
+      - alert: PlatteNichtEingehaengt
+        expr: absent(node_filesystem_size_bytes{mountpoint="/mnt/data"}) and on() (up{job="node"} == 1)
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "Platte unter /mnt/data ist nicht eingehängt"
+          description: "Backup und Cloud-Speicher haben kein Ziel. Prüfen mit: findmnt /mnt/data und journalctl -u mnt-data.mount"
 
   - name: container
     rules:

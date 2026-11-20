@@ -38,7 +38,9 @@ services:
     volumes:
       - /sys/class/thermal:/sys/class/thermal:ro
       - /:/host:ro
-      - /mnt/external_drive:/mnt/external_drive:ro
+      # rslave: Wird die Platte erst nach dem Containerstart eingehängt, sieht
+      # die API sie trotzdem (sonst das leere Verzeichnis auf der SD-Karte).
+      - /mnt/data:/mnt/data:ro,rslave
       - ./runtime:/runtime:ro
 
 networks:
