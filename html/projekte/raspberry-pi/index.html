@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <meta name="description"
-          content="Dokumentation meines Raspberry-Pi-Webservers mit Docker, Nginx, Cloudflare Tunnel und automatischen Backups.">
+          content="Dokumentation meines Raspberry-Pi-Servers mit Docker, Nginx, Cloudflare Tunnel, Monitoring, CI/CD, Ansible und getesteten Backups.">
 
     <title>Raspberry Pi Webserver | Koffler Online</title>
 
@@ -24,7 +24,9 @@
         <div class="nav-links">
             <a href="../../index.html">Startseite</a>
             <a href="#architektur">Architektur</a>
-            <a href="#aufbau">Aufbau</a>
+            <a href="#monitoring">Monitoring</a>
+            <a href="#cicd">CI/CD</a>
+            <a href="#ansible">Ansible</a>
             <a href="#backup">Backup</a>
         </div>
 
@@ -58,7 +60,9 @@
                 Paket, sondern auf einem Raspberry Pi bei mir zu Hause.
                 Von der Hardware über Docker und Nginx bis zur sicheren
                 Verbindung ins Internet habe ich die komplette Infrastruktur
-                selbst aufgebaut.
+                selbst aufgebaut. Inzwischen wird der Server überwacht,
+                rollt Änderungen selbst aus, ist vollständig als Code
+                beschrieben und sichert sich mit getesteten Backups.
             </p>
 
             <div class="project-status">
@@ -95,22 +99,22 @@
 
                 <div class="stat">
                     <strong>1x</strong>
-                    <span>Raspberry Pi</span>
+                    <span>Raspberry Pi 4</span>
                 </div>
 
                 <div class="stat">
-                    <strong>3x</strong>
+                    <strong>9x</strong>
                     <span>Docker Container</span>
                 </div>
 
                 <div class="stat">
-                    <strong>1x</strong>
-                    <span>Domain</span>
+                    <strong>24</strong>
+                    <span>Getestete Alarmregeln</span>
                 </div>
 
                 <div class="stat">
-                    <strong>1x</strong>
-                    <span>Externe Festplatte</span>
+                    <strong>9</strong>
+                    <span>Ansible-Rollen</span>
                 </div>
 
             </div>
@@ -139,7 +143,8 @@
             <p class="section-intro">
                 Der Raspberry Pi ist nicht direkt aus dem Internet erreichbar.
                 Stattdessen stellt Cloudflare einen Tunnel zum lokalen
-                Webserver her.
+                Webserver her. Für Web-Dienste ist kein einziger Port
+                geöffnet, Admin-Oberflächen erreiche ich nur per SSH-Tunnel.
             </p>
 
 
@@ -217,7 +222,7 @@
                     <strong>Nginx</strong>
 
                     <span>
-                        Website
+                        Website, API, Grafana
                     </span>
 
                 </div>
@@ -240,7 +245,7 @@
             </p>
 
             <h2>
-                Drei Container,
+                Zwei Stacks,
                 <span>klar getrennte Aufgaben.</span>
             </h2>
 
@@ -265,9 +270,10 @@
 
                         <p>
                             Der Nginx-Container liefert die statischen
-                            Dateien der Website aus. Das eigentliche
-                            Website-Verzeichnis wird vom Raspberry Pi
-                            als read-only Volume eingebunden.
+                            Dateien der Website aus und leitet
+                            <code>/api/</code> und <code>/monitoring/</code>
+                            an die passenden Container weiter. Website und
+                            Konfiguration sind read-only eingebunden.
                         </p>
 
                         <code>
@@ -298,7 +304,8 @@
                         <p>
                             Der Cloudflare-Tunnel-Container stellt die
                             Verbindung zwischen Cloudflare und dem
-                            lokalen Nginx-Container her.
+                            lokalen Nginx-Container her. Das Token
+                            kommt verschlüsselt aus dem Ansible Vault.
                         </p>
 
                         <code>
@@ -327,12 +334,44 @@
 
                         <p>
                             Die Flask-API stellt die Live-Systemdaten
-                            für das Dashboard bereit. Sie läuft mit
-                            Gunicorn auf Port 8080.
+                            für das <a class="text-link" href="/dashboard/">Dashboard</a>
+                            bereit. Die CI baut das Image für ARM64 und
+                            legt es in der GitHub Container Registry ab.
                         </p>
 
                         <code>
                             /api/status
+                        </code>
+
+                    </div>
+
+                </article>
+
+                <article class="component-card">
+
+                    <div class="component-icon">
+                        📈
+                    </div>
+
+                    <div>
+
+                        <p class="component-type">
+                            MONITORING
+                        </p>
+
+                        <h3>
+                            monitoring/
+                        </h3>
+
+                        <p>
+                            Ein eigener Compose-Stack mit Prometheus,
+                            Grafana, Alertmanager, node-exporter,
+                            cAdvisor und blackbox-exporter. Er läuft
+                            neben der Website und überwacht sie.
+                        </p>
+
+                        <code>
+                            /monitoring/
                         </code>
 
                     </div>
@@ -345,31 +384,567 @@
             <div class="code-block">
 
                 <div class="code-header">
-                    docker-compose.yml
+                    docker-compose.yml (gekürzt)
                 </div>
 
                 <pre><code>services:
 
   nginx-homepage:
-    image: nginx:latest
-    container_name: nginx-homepage
+    image: nginx:1.31.3
     restart: unless-stopped
+    volumes:
+      - ./html:/usr/share/nginx/html:ro
+      - ./nginx:/etc/nginx/conf.d:ro
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: cloudflared
-    restart: unless-stopped
+    image: cloudflare/cloudflared:2026.10.7
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
 
   dashboard-api:
-    build:
-      context: ./api
-    container_name: dashboard-api
-    restart: unless-stopped
+    image: ghcr.io/spartan00ne/raspberry-pi-home-server/dashboard-api:${API_TAG:-main}
     expose:
       - "8080"
 
 networks:
   web:</code></pre>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- Monitoring -->
+
+    <section id="monitoring" class="section architecture-section">
+
+        <div class="container">
+
+            <p class="section-label">
+                MONITORING
+            </p>
+
+            <h2>
+                Probleme erfahren,
+                <span>bevor Besucher sie merken.</span>
+            </h2>
+
+            <p class="section-intro">
+                Der Monitoring-Stack überwacht den Pi, alle Container und
+                die Erreichbarkeit der Website von außen. Hohe Temperatur,
+                Unterspannung, volle Platten, ausgefallene Container,
+                fehlgeschlagene Deployments oder Backups meldet er sofort
+                per Telegram.
+            </p>
+
+
+            <div class="components">
+
+                <article class="component-card">
+
+                    <div class="component-icon">
+                        🔥
+                    </div>
+
+                    <div>
+
+                        <p class="component-type">
+                            METRIKEN
+                        </p>
+
+                        <h3>
+                            Prometheus
+                        </h3>
+
+                        <p>
+                            Sammelt alle Messwerte und wertet 24
+                            Alarmregeln aus. Jede Regel hat Unit-Tests,
+                            die in der CI laufen.
+                        </p>
+
+                    </div>
+
+                </article>
+
+
+                <article class="component-card">
+
+                    <div class="component-icon">
+                        📊
+                    </div>
+
+                    <div>
+
+                        <p class="component-type">
+                            DASHBOARD
+                        </p>
+
+                        <h3>
+                            Grafana
+                        </h3>
+
+                        <p>
+                            Zeigt die Daten als Dashboard, öffentlich
+                            und nur lesend. Das Dashboard ist als Code
+                            im Repository versioniert.
+                        </p>
+
+                    </div>
+
+                </article>
+
+
+                <article class="component-card">
+
+                    <div class="component-icon">
+                        🔔
+                    </div>
+
+                    <div>
+
+                        <p class="component-type">
+                            ALARME
+                        </p>
+
+                        <h3>
+                            Alertmanager
+                        </h3>
+
+                        <p>
+                            Bündelt die Alarme und schickt sie an
+                            einen Telegram-Bot, inklusive Entwarnung,
+                            wenn das Problem behoben ist.
+                        </p>
+
+                    </div>
+
+                </article>
+
+
+                <article class="component-card">
+
+                    <div class="component-icon">
+                        🛰️
+                    </div>
+
+                    <div>
+
+                        <p class="component-type">
+                            EXPORTER
+                        </p>
+
+                        <h3>
+                            Datenquellen
+                        </h3>
+
+                        <p>
+                            node-exporter (Host), cAdvisor (Container),
+                            blackbox-exporter (Website von außen) und
+                            ein eigenes Skript für Pi-Werte wie
+                            Unterspannung und Drosselung.
+                        </p>
+
+                    </div>
+
+                </article>
+
+            </div>
+
+
+            <a href="/monitoring/" class="button">
+                Monitoring live ansehen →
+            </a>
+
+        </div>
+
+    </section>
+
+
+    <!-- CI/CD -->
+
+    <section id="cicd" class="section">
+
+        <div class="container">
+
+            <p class="section-label">
+                CI/CD & GITOPS
+            </p>
+
+            <h2>
+                Jede Änderung geprüft,
+                <span>automatisch ausgerollt.</span>
+            </h2>
+
+            <p class="section-intro">
+                Ich ändere nichts mehr von Hand auf dem Server. Jede
+                Änderung landet als Pull Request im Repository, wird
+                geprüft und erst nach dem Merge vom Pi selbst abgeholt.
+            </p>
+
+
+            <div class="backup-flow">
+
+                <div class="backup-step">
+
+                    <span>01</span>
+
+                    <strong>
+                        GitHub Actions
+                    </strong>
+
+                    <p>
+                        Lint (ShellCheck, Ruff, Hadolint),
+                        Konfigurations-Checks, Alarm-Tests
+                        und ARM64-Image für die API
+                    </p>
+
+                </div>
+
+
+                <div class="backup-arrow">
+                    →
+                </div>
+
+
+                <div class="backup-step">
+
+                    <span>02</span>
+
+                    <strong>
+                        Deploy-Timer
+                    </strong>
+
+                    <p>
+                        Der Pi prüft alle 2 Minuten, ob es
+                        auf main einen neuen Commit mit
+                        grüner CI gibt, und holt ihn ab
+                    </p>
+
+                </div>
+
+
+                <div class="backup-arrow">
+                    →
+                </div>
+
+
+                <div class="backup-step">
+
+                    <span>03</span>
+
+                    <strong>
+                        Health-Check
+                    </strong>
+
+                    <p>
+                        Website und API werden geprüft.
+                        Bei einem Fehler rollt der Pi
+                        zurück und schlägt Alarm
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <div class="recovery-note">
+
+                <span class="check">
+                    ✓
+                </span>
+
+                <div>
+
+                    <strong>
+                        Pull statt Push
+                    </strong>
+
+                    <p>
+                        GitHub hat keinen Zugang zum Pi, und der Pi
+                        braucht keine offenen Ports. Dependabot hält
+                        Images und Pakete aktuell.
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- Ansible -->
+
+    <section id="ansible" class="section architecture-section">
+
+        <div class="container">
+
+            <p class="section-label">
+                INFRASTRUKTUR ALS CODE
+            </p>
+
+            <h2>
+                Der ganze Server
+                <span>in einem Playbook.</span>
+            </h2>
+
+            <p class="section-intro">
+                Die komplette Konfiguration des Pi ist mit Ansible
+                beschrieben: Härtung, Firewall, Updates, Docker, die
+                Anwendung, Secrets, Timer und die externe Platte. Ein frisch
+                geflashter Pi wird mit einem Playbook wieder zum laufenden
+                Server.
+            </p>
+
+
+            <div class="components">
+
+                <article class="component-card">
+
+                    <div class="component-icon">
+                        🛡️
+                    </div>
+
+                    <div>
+
+                        <p class="component-type">
+                            HÄRTUNG
+                        </p>
+
+                        <h3>
+                            Abgesichert ab Werk
+                        </h3>
+
+                        <p>
+                            SSH nur mit Schlüssel, kein Root-Login. Die
+                            Firewall lässt eingehend nur SSH und VNC aus dem
+                            Heimnetz durch. Sicherheitsupdates laufen
+                            automatisch.
+                        </p>
+
+                    </div>
+
+                </article>
+
+
+                <article class="component-card">
+
+                    <div class="component-icon">
+                        🔑
+                    </div>
+
+                    <div>
+
+                        <p class="component-type">
+                            SECRETS
+                        </p>
+
+                        <h3>
+                            Ansible Vault
+                        </h3>
+
+                        <p>
+                            Tunnel-Token, Passwörter und Bot-Token liegen
+                            verschlüsselt im Repository. Die CI kennt das
+                            Vault-Passwort nie.
+                        </p>
+
+                    </div>
+
+                </article>
+
+
+                <article class="component-card">
+
+                    <div class="component-icon">
+                        🚪
+                    </div>
+
+                    <div>
+
+                        <p class="component-type">
+                            SICHERHEITSNETZ
+                        </p>
+
+                        <h3>
+                            Nie ausgesperrt
+                        </h3>
+
+                        <p>
+                            Ich habe keinen physischen Zugriff auf den Pi.
+                            Schlüsselprüfung, sshd-Validierung und ein
+                            Rettungs-Timer für die Firewall verhindern,
+                            dass ich mich aussperre.
+                        </p>
+
+                    </div>
+
+                </article>
+
+
+                <article class="component-card">
+
+                    <div class="component-icon">
+                        🔁
+                    </div>
+
+                    <div>
+
+                        <p class="component-type">
+                            ABGLEICH
+                        </p>
+
+                        <h3>
+                            changed=0
+                        </h3>
+
+                        <p>
+                            In der CI läuft das Playbook zweimal in einem
+                            Debian-Container, der zweite Lauf muss nichts
+                            ändern. Gegen den echten Pi meldet
+                            <code>--check</code> keine Abweichung.
+                        </p>
+
+                    </div>
+
+                </article>
+
+            </div>
+
+
+            <div class="code-block">
+
+                <div class="code-header">
+                    ansible/roles/
+                </div>
+
+                <pre><code>base       Grundpakete, nicht benötigte Dienste (NFS) aus
+ssh        sshd nur mit Schlüssel
+firewall   ufw mit Rettungs-Timer
+updates    unattended-upgrades
+boot       Kernel-Parameter (z. B. Memory-Cgroup)
+docker     Docker aus dem offiziellen Repository
+storage    externe Platte (ext4) unter /mnt/data
+app        Repository, Docker-Secrets, Deploy- und Metrik-Timer
+backup     restic-Backup und Restore-Test</code></pre>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- Backup -->
+
+    <section id="backup" class="section backup-section">
+
+        <div class="container">
+
+            <p class="section-label">
+                BACKUP & RESTORE
+            </p>
+
+            <h2>
+                Nicht nur sichern.
+                <span>Auch wiederherstellen können.</span>
+            </h2>
+
+            <p class="section-intro">
+                Code und Konfiguration liegen in Git, die Secrets im
+                Ansible Vault. Gesichert werden muss deshalb nur der
+                Zustand: die Grafana-Datenbank, die Messwerte von
+                Prometheus und die Einstellungen des Alertmanagers.
+            </p>
+
+
+            <div class="backup-flow">
+
+                <div class="backup-step">
+
+                    <span>01</span>
+
+                    <strong>
+                        Täglich 03:00
+                    </strong>
+
+                    <p>
+                        Container kurz anhalten, Zustand
+                        mit restic sichern, alte Stände
+                        nach festen Regeln ausdünnen
+                    </p>
+
+                </div>
+
+
+                <div class="backup-arrow">
+                    →
+                </div>
+
+
+                <div class="backup-step">
+
+                    <span>02</span>
+
+                    <strong>
+                        Externe Platte
+                    </strong>
+
+                    <p>
+                        Verschlüsseltes, dedupliziertes
+                        restic-Repository auf der ext4-Platte
+                        außerhalb der SD-Karte
+                    </p>
+
+                </div>
+
+
+                <div class="backup-arrow">
+                    →
+                </div>
+
+
+                <div class="backup-step">
+
+                    <span>03</span>
+
+                    <strong>
+                        Restore-Test sonntags
+                    </strong>
+
+                    <p>
+                        Neuestes Backup in Wegwerf-Container
+                        ohne Netzwerk zurückspielen und
+                        die Daten darin prüfen
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <div class="recovery-note">
+
+                <span class="check">
+                    ✓
+                </span>
+
+                <div>
+
+                    <strong>
+                        Ernstfall geübt
+                    </strong>
+
+                    <p>
+                        Die Wiederherstellung wurde am laufenden Pi
+                        durchgespielt: Messwert-Historie vollständig,
+                        Website erreichbar. Schlägt ein Backup oder
+                        Restore-Test fehl, kommt ein Alarm.
+                    </p>
+
+                </div>
 
             </div>
 
@@ -424,117 +999,6 @@ networks:
                     <span>
                         Cloudflare SSL/TLS
                     </span>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    </section>
-
-
-    <!-- Backup -->
-
-    <section id="backup" class="section backup-section">
-
-        <div class="container">
-
-            <p class="section-label">
-                BACKUP & RECOVERY
-            </p>
-
-            <h2>
-                Nicht nur sichern.
-                <span>Auch wiederherstellen können.</span>
-            </h2>
-
-            <p class="section-intro">
-                Die Website-Konfiguration und die benötigten Dateien
-                werden regelmäßig auf einer externen Festplatte
-                gespeichert.
-            </p>
-
-
-            <div class="backup-flow">
-
-                <div class="backup-step">
-
-                    <span>01</span>
-
-                    <strong>
-                        Homepage
-                    </strong>
-
-                    <p>
-                        Website, Docker-Konfiguration,
-                        Nginx-Konfiguration und Scripts
-                    </p>
-
-                </div>
-
-
-                <div class="backup-arrow">
-                    →
-                </div>
-
-
-                <div class="backup-step">
-
-                    <span>02</span>
-
-                    <strong>
-                        Backup-Script
-                    </strong>
-
-                    <p>
-                        Erstellt versionierte Backups
-                        mit Zeitstempel
-                    </p>
-
-                </div>
-
-
-                <div class="backup-arrow">
-                    →
-                </div>
-
-
-                <div class="backup-step">
-
-                    <span>03</span>
-
-                    <strong>
-                        Externe HDD
-                    </strong>
-
-                    <p>
-                        Zusätzliche Kopie außerhalb
-                        der SD-Karte
-                    </p>
-
-                </div>
-
-            </div>
-
-
-            <div class="recovery-note">
-
-                <span class="check">
-                    ✓
-                </span>
-
-                <div>
-
-                    <strong>
-                        Wiederherstellung getestet
-                    </strong>
-
-                    <p>
-                        Ein Backup wurde nicht nur erstellt,
-                        sondern anschließend auch erfolgreich
-                        wiederhergestellt.
-                    </p>
 
                 </div>
 
@@ -616,12 +1080,13 @@ networks:
                     <div>
 
                         <h3>
-                            Eigene Domain
+                            Eigene Domain und Live-Dashboard
                         </h3>
 
                         <p>
                             Mit koffler-online.de bekam das Projekt
-                            schließlich eine eigene Adresse.
+                            eine eigene Adresse, eine kleine API
+                            liefert seitdem Live-Daten vom Pi.
                         </p>
 
                     </div>
@@ -638,13 +1103,82 @@ networks:
                     <div>
 
                         <h3>
-                            Backup & Recovery
+                            Monitoring und Alarme
                         </h3>
 
                         <p>
-                            Zum Schluss wurde die Infrastruktur
-                            gegen Datenverlust abgesichert und
-                            die Wiederherstellung getestet.
+                            Prometheus, Grafana und Alertmanager
+                            überwachen den Server und melden
+                            Probleme per Telegram.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="timeline-item">
+
+                    <span class="timeline-number">
+                        05
+                    </span>
+
+                    <div>
+
+                        <h3>
+                            CI/CD
+                        </h3>
+
+                        <p>
+                            GitHub Actions prüft jede Änderung, der Pi
+                            rollt grüne Commits selbst aus und setzt
+                            sich bei Fehlern zurück.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="timeline-item">
+
+                    <span class="timeline-number">
+                        06
+                    </span>
+
+                    <div>
+
+                        <h3>
+                            Infrastruktur als Code
+                        </h3>
+
+                        <p>
+                            Mit Ansible ist der ganze Server
+                            beschrieben und jederzeit neu
+                            aufbaubar.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="timeline-item">
+
+                    <span class="timeline-number">
+                        07
+                    </span>
+
+                    <div>
+
+                        <h3>
+                            Backup & Restore
+                        </h3>
+
+                        <p>
+                            restic sichert den Zustand verschlüsselt,
+                            ein wöchentlicher Restore-Test prüft, ob
+                            die Wiederherstellung wirklich klappt.
                         </p>
 
                     </div>
@@ -660,7 +1194,7 @@ networks:
 
     <!-- Abschluss -->
 
-    <section class="cta">
+    <section id="naechster-schritt" class="cta">
 
         <div class="container">
 
@@ -669,11 +1203,16 @@ networks:
             </p>
 
             <h2>
-                Das Projekt ist noch nicht fertig.
+                Eine eigene Cloud.
             </h2>
 
             <p>
-                Genau das macht es interessant.
+                Gerade entsteht ein Cloud-Speicher mit Nextcloud auf der
+                externen Platte. Erreichbar ist er nur über ein privates
+                Tailscale-Netz, nicht aus dem offenen Internet, und eine
+                Backup-Kopie landet zusätzlich auf einem zweiten Rechner.
+                Den Plan gibt es
+                <a class="text-link" href="https://github.com/Spartan00ne/raspberry-pi-home-server/issues/20">auf GitHub</a>.
             </p>
 
             <a href="../../index.html" class="button">

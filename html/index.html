@@ -17,6 +17,8 @@
                 <a href="#ueber-mich">Über mich</a>
                 <a href="#projekte">Projekte</a>
                 <a href="#technik">Technik</a>
+                <a href="dashboard/">Dashboard</a>
+                <a href="/monitoring/">Monitoring</a>
             </nav>
         </div>
     </header>
@@ -30,12 +32,13 @@
                     <h1>Technik verstehen.<br><span>Selbst machen.</span></h1>
                     <p class="hero-text">
                         Meine Homepage ist ein Raum für Experimente, kleine Projekte und alles,
-                        was ich selbst ausprobiert und aufgebaut habe – von Raspberry Pi bis Cloudflare.
+                        was ich selbst ausprobiert und aufgebaut habe – vom Raspberry Pi über Monitoring
+                        bis zur Infrastruktur als Code.
                     </p>
 
                     <div class="hero-actions">
                         <a href="#projekte" class="button primary">Projekte ansehen</a>
-                        <a href="#ueber-mich" class="button secondary">Mehr über mich</a>
+                        <a href="dashboard/" class="button secondary">Live-Dashboard</a>
                     </div>
                 </div>
 
@@ -50,10 +53,13 @@
                         <p><span class="prompt">$</span> hostname</p>
                         <p>raspberry-pi</p>
 
-                        <p><span class="prompt">$</span> docker ps</p>
-                        <p>nginx-homepage</p>
-                        <p>cloudflared</p>
-                        <p>dashboard-api</p>
+                        <p><span class="prompt">$</span> docker ps --format '{{.Names}}'</p>
+                        <p>nginx-homepage · cloudflared · dashboard-api</p>
+                        <p>prometheus · grafana · alertmanager</p>
+                        <p>node-exporter · cadvisor · blackbox-exporter</p>
+
+                        <p><span class="prompt">$</span> ansible-playbook site.yml --check</p>
+                        <p>changed=0</p>
 
                         <p><span class="prompt">$</span> status</p>
                         <p class="status-online">● online</p>
@@ -77,6 +83,12 @@
                         Aktuell lebt diese Seite auf einem Raspberry Pi. Nginx liefert die Inhalte aus,
                         Docker kapselt die Dienste und Cloudflare stellt die sichere Verbindung ins Internet her.
                     </p>
+                    <p>
+                        Inzwischen ist daraus ein kleiner, ernsthaft betriebener Server geworden: Prometheus
+                        und Grafana überwachen ihn und melden Probleme per Telegram, GitHub Actions prüft jede
+                        Änderung, der Pi rollt sie selbst aus, Ansible beschreibt die komplette Konfiguration
+                        und restic sichert den Zustand, mit wöchentlichem Restore-Test.
+                    </p>
                 </div>
             </div>
         </section>
@@ -87,75 +99,87 @@
                 <h2>Ein Blick auf meine aktuellen Ideen und Builds.</h2>
 
                 <div class="projects-grid">
-                    <a href="projekte/raspberry-pi/index.html" class="project-card">
+                    <a href="projekte/raspberry-pi/index.html#architektur" class="project-card">
                         <div class="project-number">01</div>
                         <div class="project-icon">🥧</div>
                         <h3>Raspberry Pi Webserver</h3>
                         <p>
-                            Ein eigener kleiner Server, der diese Webseite ausliefert – komplett zu Hause,
-                            mit Docker, Nginx und Cloudflare Tunnel.
+                            Ein eigener Server zu Hause, der diese Website ausliefert – mit Docker, Nginx, Cloudflare Tunnel und der eigenen Domain koffler-online.de.
                         </p>
                         <div class="tags">
                             <span>Raspberry Pi</span>
-                            <span>Linux</span>
-                        </div>
-                    </a>
-
-                    <a href="projekte/raspberry-pi/index.html" class="project-card">
-                        <div class="project-number">02</div>
-                        <div class="project-icon">🐳</div>
-                        <h3>Docker & Nginx</h3>
-                        <p>
-                            Containerisierte Infrastruktur für die Website mit sauberer Trennung von
-                            Webserver, Netzwerk und externem Zugriff.
-                        </p>
-                        <div class="tags">
                             <span>Docker</span>
-                            <span>Nginx</span>
-                            <span>Compose</span>
+                            <span>Cloudflare</span>
                         </div>
                     </a>
 
-                    <a href="projekte/raspberry-pi/index.html" class="project-card">
+                    <a href="projekte/raspberry-pi/index.html#monitoring" class="project-card">
+                        <div class="project-number">02</div>
+                        <div class="project-icon">📈</div>
+                        <h3>Monitoring & Alarme</h3>
+                        <p>
+                            Prometheus, Grafana und Alertmanager überwachen Pi, Container und Website. 24 getestete Alarmregeln melden Probleme per Telegram.
+                        </p>
+                        <div class="tags">
+                            <span>Prometheus</span>
+                            <span>Grafana</span>
+                            <span>Telegram</span>
+                        </div>
+                    </a>
+
+                    <a href="projekte/raspberry-pi/index.html#cicd" class="project-card">
                         <div class="project-number">03</div>
-                        <div class="project-icon">☁️</div>
-                        <h3>Cloudflare Tunnel</h3>
+                        <div class="project-icon">🚀</div>
+                        <h3>CI/CD & GitOps</h3>
                         <p>
-                            Sicherer Zugang aus dem Internet, ohne den Raspberry Pi direkt zu exponieren.
+                            GitHub Actions prüft jede Änderung. Der Pi holt sich nur grüne Commits selbst ab, prüft die Website und rollt bei Fehlern zurück.
                         </p>
                         <div class="tags">
-                            <span>Cloudflare</span>
-                            <span>Tunnel</span>
-                            <span>HTTPS</span>
+                            <span>GitHub Actions</span>
+                            <span>GitOps</span>
+                            <span>ARM64</span>
                         </div>
                     </a>
 
-                    <a href="projekte/raspberry-pi/index.html" class="project-card">
+                    <a href="projekte/raspberry-pi/index.html#ansible" class="project-card">
                         <div class="project-number">04</div>
-                        <div class="project-icon">🌐</div>
-                        <h3>Eigene Domain</h3>
+                        <div class="project-icon">🧩</div>
+                        <h3>Infrastruktur als Code</h3>
                         <p>
-                            Aus einem einfachen Test wurde schließlich eine eigene Domain: koffler-online.de.
+                            Der ganze Server ist mit Ansible beschrieben – von der Härtung bis zu den Timern. Ein frisch geflashter Pi wird mit einem Playbook wieder zum Server.
                         </p>
                         <div class="tags">
-                            <span>DNS</span>
-                            <span>Domain</span>
-                            <span>Cloudflare</span>
+                            <span>Ansible</span>
+                            <span>Vault</span>
+                            <span>Härtung</span>
                         </div>
                     </a>
 
-                    <a href="projekte/raspberry-pi/index.html" class="project-card">
+                    <a href="projekte/raspberry-pi/index.html#backup" class="project-card">
                         <div class="project-number">05</div>
                         <div class="project-icon">💾</div>
-                        <h3>Backups & Recovery</h3>
+                        <h3>Backup & Restore</h3>
                         <p>
-                            Regelmäßige Sicherung der Konfigurationen und Daten – damit auch ein Neustart
-                            keine Katastrophe ist.
+                            restic sichert den Zustand täglich verschlüsselt auf die externe Platte. Ein wöchentlicher Restore-Test beweist, dass das Backup taugt.
                         </p>
                         <div class="tags">
+                            <span>restic</span>
+                            <span>Restore-Test</span>
+                            <span>ext4</span>
+                        </div>
+                    </a>
+
+                    <a href="projekte/raspberry-pi/index.html#naechster-schritt" class="project-card">
+                        <div class="project-number">06</div>
+                        <div class="project-icon">🔐</div>
+                        <h3>Cloud-Speicher (in Arbeit)</h3>
+                        <p>
+                            Als Nächstes: eine eigene Cloud mit Nextcloud auf der externen Platte, erreichbar nur über ein privates Tailscale-Netz, mit Backup-Kopie auf einem zweiten Rechner.
+                        </p>
+                        <div class="tags">
+                            <span>Nextcloud</span>
+                            <span>Tailscale</span>
                             <span>Backup</span>
-                            <span>rsync</span>
-                            <span>Recovery</span>
                         </div>
                     </a>
                 </div>
@@ -170,9 +194,10 @@
                 <div class="tech-layout">
                     <div class="tech-copy">
                         <p>
-                            Hinter der scheinbar einfachen Website steckt eine kleine, aber funktionierende
-                            Infrastruktur. Ich kombiniere Raspberry Pi, Linux, Docker und Nginx zu einem
-                            überschaubaren, selbst betriebenen System.
+                            Hinter der scheinbar einfachen Website steckt eine kleine, aber vollständige
+                            Infrastruktur: Container, Monitoring, automatisches Ausrollen, Konfiguration als
+                            Code und getestete Backups – alles auf einem Raspberry Pi und alles im
+                            <a class="text-link" href="https://github.com/Spartan00ne/raspberry-pi-home-server">öffentlichen Repository</a>.
                         </p>
                         <p>
                             Es geht nicht nur um das Endergebnis, sondern auch darum, die einzelnen Bausteine
@@ -181,11 +206,15 @@
                     </div>
 
                     <div class="tech-stack">
-                        <div class="tech-item"><strong>Hardware</strong><span>Raspberry Pi</span></div>
-                        <div class="tech-item"><strong>OS</strong><span>Linux</span></div>
-                        <div class="tech-item"><strong>Container</strong><span>Docker</span></div>
+                        <div class="tech-item"><strong>Hardware</strong><span>Raspberry Pi 4</span></div>
+                        <div class="tech-item"><strong>OS</strong><span>Raspberry Pi OS (Debian 13)</span></div>
+                        <div class="tech-item"><strong>Container</strong><span>Docker Compose</span></div>
                         <div class="tech-item"><strong>Webserver</strong><span>Nginx</span></div>
                         <div class="tech-item"><strong>Netzwerk</strong><span>Cloudflare Tunnel</span></div>
+                        <div class="tech-item"><strong>Monitoring</strong><span>Prometheus & Grafana</span></div>
+                        <div class="tech-item"><strong>CI/CD</strong><span>GitHub Actions</span></div>
+                        <div class="tech-item"><strong>Konfiguration</strong><span>Ansible</span></div>
+                        <div class="tech-item"><strong>Backup</strong><span>restic</span></div>
                         <div class="tech-item"><strong>Domain</strong><span>koffler-online.de</span></div>
                     </div>
                 </div>
