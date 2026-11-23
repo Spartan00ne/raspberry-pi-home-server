@@ -39,6 +39,17 @@ a {
     text-decoration: none;
 }
 
+.text-link {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.text-link:hover,
+.text-link:focus-visible {
+    color: var(--accent-strong);
+}
+
 img {
     max-width: 100%;
     display: block;
