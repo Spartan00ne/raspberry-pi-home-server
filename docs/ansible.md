@@ -65,7 +65,7 @@ Die CI (`.github/workflows/ci.yml`, Job *Ansible*) prüft jeden Pull Request:
    ist so vorbereitet wie ein Pi nach dem Imager (`ansible/tests/Dockerfile`).
    Die Rollen `boot` und `firewall` werden dort übersprungen, ebenso das
    echte Einhängen der Platte (Tag `mount`) und die Anmeldung bei Tailscale
-   (Tag `tailnet`). Der fstab-Eintrag wird geprüft, Tailscale wird
+   (Tag `tailnet-login`). Der fstab-Eintrag wird geprüft, Tailscale wird
    installiert und gestartet.
 4. **Ein zweiter Lauf muss `changed=0` melden.** Damit ist bewiesen, dass das
    Playbook idempotent ist.

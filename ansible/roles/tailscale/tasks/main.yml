@@ -5,7 +5,7 @@
 # der Weg ins LAN unverändert. Wer was im Tailnet erreicht, regelt die
 # ACL-Policy in tailscale/policy.hujson, nicht ufw (docs/tailscale.md).
 #
-# Die Anmeldung trägt das Tag "tailnet". Die CI überspringt sie, weil der
+# Die Anmeldung trägt das Tag "tailnet-login". Die CI überspringt sie, weil der
 # Testcontainer keinen Auth-Key hat und nicht ins Tailnet soll.
 
 - name: Verzeichnis für APT-Schlüssel
@@ -53,7 +53,7 @@
   when: not (ansible_check_mode and tailscale_install is changed)
 
 - name: Im Tailnet anmelden
-  tags: [tailnet]
+  tags: [tailnet-login]
   when: not (ansible_check_mode and tailscale_install is changed)
   block:
     - name: Status lesen
@@ -62,12 +62,21 @@
       changed_when: false
       check_mode: false
 
+    - name: Status vor der Anmeldung merken
+      ansible.builtin.set_fact:
+        tailscale_backend_before: "{{ (tailscale_status_before.stdout | from_json).BackendState }}"
+
     # Wie bei der Firewall: Erst ein Rettungs-Timer, dann die Änderung, dann
     # eine NEUE SSH-Verbindung über das LAN. Klappt sie nicht, bleibt der
     # Timer aktiv und meldet den Pi wieder ab.
+    #
+    # Den Auth-Key braucht nur ein Pi, der noch nie angemeldet war
+    # (NeedsLogin). Nach "tailscale down" (Stopped, etwa durch den
+    # Rettungs-Timer) gilt der Schlüssel des Geräts noch, dann reicht ein
+    # "tailscale up" ohne den längst verbrauchten Auth-Key.
     - name: Anmelden (mit Rettungs-Timer)
       when:
-        - (tailscale_status_before.stdout | from_json).BackendState != 'Running'
+        - tailscale_backend_before != 'Running'
         - not ansible_check_mode
       block:
         - name: Auth-Key muss gesetzt sein
@@ -75,6 +84,27 @@
             that: tailscale_auth_key is defined and tailscale_auth_key | length > 0
             fail_msg: "vault_tailscale_auth_key fehlt im Vault (docs/tailscale.md#einrichten)"
             quiet: true
+          when: tailscale_backend_before == 'NeedsLogin'
+
+        # Der Key geht als Datei an tailscale up, damit er nicht in der
+        # Prozessliste steht. Die Datei liegt nur während der Anmeldung da.
+        - name: Datei für den Auth-Key anlegen
+          ansible.builtin.tempfile:
+            state: file
+            suffix: .tailscale-authkey
+          register: tailscale_key_file
+          when: tailscale_backend_before == 'NeedsLogin'
+
+        - name: Auth-Key in die Datei schreiben
+          ansible.builtin.copy:
+            content: "{{ tailscale_auth_key }}"
+            dest: "{{ tailscale_key_file.path }}"
+            owner: root
+            group: root
+            mode: "0600"
+          no_log: true
+          diff: false
+          when: tailscale_backend_before == 'NeedsLogin'
 
         - name: Eindeutigen Namen für den Rettungs-Timer festlegen
           ansible.builtin.set_fact:
@@ -86,13 +116,13 @@
             --unit={{ tailscale_rescue_unit }} /usr/bin/tailscale down
           changed_when: true
 
-        - name: Mit Auth-Key anmelden
+        - name: Anmelden
           ansible.builtin.command: >-
-            tailscale up --auth-key={{ tailscale_auth_key }}
+            tailscale up
+            {{ '--auth-key=file:' ~ tailscale_key_file.path if tailscale_backend_before == 'NeedsLogin' else '' }}
             --advertise-tags={{ tailscale_tags | join(',') }}
             --accept-dns=false --accept-routes=false --timeout=60s
           changed_when: true
-          no_log: true
 
         # Bewusst ohne SSH-Multiplexing: Eine bestehende Verbindung würde
         # eine neue Sperre nicht bemerken.
@@ -115,6 +145,16 @@
             name: "{{ tailscale_rescue_unit }}.timer"
             state: stopped
 
+      always:
+        - name: Datei mit dem Auth-Key löschen
+          ansible.builtin.file:
+            path: "{{ tailscale_key_file.path }}"
+            state: absent
+          when: tailscale_key_file.path is defined
+
+    # "tailscale debug prefs" ist eine Debug-Ausgabe ohne zugesagtes Format.
+    # Angenommen sind die Felder CorpDNS und RouteAll von ipn.Prefs. Fehlen sie
+    # nach einem Update, bricht der Lauf hier ab, statt Drift zu übersehen.
     - name: Einstellungen lesen
       ansible.builtin.command: tailscale debug prefs
       register: tailscale_prefs_raw
@@ -132,10 +172,22 @@
         tailscale_prefs: "{{ tailscale_prefs_raw.stdout | from_json }}"
         tailscale_state: "{{ tailscale_status_after.stdout | from_json }}"
 
-    # Driftkorrektur, etwa nach einem "tailscale up" von Hand.
+    # Driftkorrektur, etwa nach einem "tailscale up" von Hand. Im Check-Modus
+    # wird command übersprungen. Damit --check die Drift trotzdem als changed
+    # meldet, gibt es dafür einen eigenen Task.
     - name: DNS und Routen von Tailscale nicht übernehmen
       ansible.builtin.command: tailscale set --accept-dns=false --accept-routes=false
-      when: tailscale_prefs.CorpDNS or tailscale_prefs.RouteAll
+      when:
+        - tailscale_prefs.CorpDNS or tailscale_prefs.RouteAll
+        - not ansible_check_mode
+      changed_when: true
+
+    - name: DNS und Routen von Tailscale nicht übernehmen (Vorschau)
+      ansible.builtin.debug:
+        msg: "Würde ändern: CorpDNS={{ tailscale_prefs.CorpDNS }}, RouteAll={{ tailscale_prefs.RouteAll }} -> false"
+      when:
+        - tailscale_prefs.CorpDNS or tailscale_prefs.RouteAll
+        - ansible_check_mode
       changed_when: true
 
     # Im Check-Modus vor der ersten Anmeldung gibt es noch nichts zu prüfen.

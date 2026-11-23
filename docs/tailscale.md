@@ -33,15 +33,19 @@ ein Ablauf gesetzt, bricht sie mit einer Meldung ab.
 
 ### Anmeldung ohne Aussperren
 
-Die Anmeldung läuft nur, wenn der Pi noch nicht im Tailnet ist. Sie folgt
+Die Anmeldung läuft nur, wenn der Pi nicht im Tailnet läuft. Sie folgt
 demselben Muster wie die Firewall ([`ansible.md`](ansible.md#sicherheitsentscheidungen)):
 
 1. Ein Rettungs-Timer startet. Er führt nach 5 Minuten `tailscale down` aus.
-2. `tailscale up` mit dem Auth-Key aus dem Vault.
+2. `tailscale up`. Den Auth-Key aus dem Vault bekommt es nur bei der ersten
+   Anmeldung (`NeedsLogin`), und zwar als Datei mit Modus 600
+   (`--auth-key=file:`), damit er nicht in der Prozessliste steht. War der Pi
+   nur gestoppt (`Stopped`, etwa durch den Rettungs-Timer), gilt der
+   Schlüssel des Geräts noch, und der verbrauchte Auth-Key wird nicht gebraucht.
 3. Eine **neue** SSH-Verbindung über das LAN wird getestet.
 4. Erst wenn sie klappt, wird der Timer gestoppt.
 
-Die Anmeldung hat das Tag `tailnet`. Die CI überspringt es: Der Testcontainer
+Die Anmeldung hat das Tag `tailnet-login`. Die CI überspringt es: Der Testcontainer
 installiert Tailscale und startet `tailscaled`, tritt aber keinem Tailnet bei.
 
 ## Zugriffsregeln
