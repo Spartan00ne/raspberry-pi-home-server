@@ -186,3 +186,104 @@ tests:
             exp_annotations:
               summary: "Seit über 8 Tagen kein erfolgreicher Restore-Test"
               description: "Prüfen mit: systemctl list-timers homepage-restore-test.timer und journalctl -u homepage-restore-test (docs/backup.md)"
+
+  # Platte: 81 % belegt, gerechnet wie df (belegt / (belegt + verfügbar)),
+  # also ohne die 50 für root reservierten Blöcke: 810 / (810 + 190).
+  # Warnung erst nach 10 Minuten, die kritische Stufe (90 %) noch nicht.
+  - interval: 1m
+    input_series:
+      - series: 'node_filesystem_size_bytes{device="/dev/sda1", fstype="ext4", mountpoint="/mnt/data", instance="raspberry-pi", job="node"}'
+        values: '1050x20'
+      - series: 'node_filesystem_free_bytes{device="/dev/sda1", fstype="ext4", mountpoint="/mnt/data", instance="raspberry-pi", job="node"}'
+        values: '240x20'
+      - series: 'node_filesystem_avail_bytes{device="/dev/sda1", fstype="ext4", mountpoint="/mnt/data", instance="raspberry-pi", job="node"}'
+        values: '190x20'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: PlatteFuellstandHoch
+        exp_alerts: []
+      - eval_time: 11m
+        alertname: PlatteFuellstandHoch
+        exp_alerts:
+          - exp_labels: {severity: warning, device: /dev/sda1, fstype: ext4, mountpoint: /mnt/data, instance: raspberry-pi, job: node}
+            exp_annotations:
+              summary: "Platte zu 81 % belegt"
+              description: "Auf /mnt/data liegen die Daten des Cloud-Speichers und das Monitoring-Backup. Aufräumen oder eine größere Platte planen (Dashboard Cloud-Speicher, Prognose)."
+      - eval_time: 11m
+        alertname: PlatteFuellstandKritisch
+        exp_alerts: []
+
+  # Platte: 92 % belegt (920 / (920 + 80)). Kritisch nach 5 Minuten. Die
+  # allgemeinen Speicherplatz-Alarme (85 %) melden diese Platte nicht noch einmal.
+  - interval: 1m
+    input_series:
+      - series: 'node_filesystem_size_bytes{device="/dev/sda1", fstype="ext4", mountpoint="/mnt/data", instance="raspberry-pi", job="node"}'
+        values: '1050x20'
+      - series: 'node_filesystem_free_bytes{device="/dev/sda1", fstype="ext4", mountpoint="/mnt/data", instance="raspberry-pi", job="node"}'
+        values: '130x20'
+      - series: 'node_filesystem_avail_bytes{device="/dev/sda1", fstype="ext4", mountpoint="/mnt/data", instance="raspberry-pi", job="node"}'
+        values: '80x20'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: PlatteFuellstandKritisch
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: PlatteFuellstandKritisch
+        exp_alerts:
+          - exp_labels: {severity: critical, device: /dev/sda1, fstype: ext4, mountpoint: /mnt/data, instance: raspberry-pi, job: node}
+            exp_annotations:
+              summary: "Platte zu 92 % belegt"
+              description: "Der Cloud-Speicher nimmt bald keine Uploads mehr an. Jetzt aufräumen oder auf eine größere Platte umziehen (docs/backup.md)."
+      - eval_time: 15m
+        alertname: SpeicherplatzKnapp
+        exp_alerts: []
+
+  # Platte nicht eingehängt: Der node-exporter läuft, meldet aber kein
+  # Dateisystem unter /mnt/data. Alarm nach 5 Minuten.
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="raspberry-pi", job="node"}'
+        values: '1x20'
+      - series: 'node_filesystem_size_bytes{device="/dev/mmcblk0p2", fstype="ext4", mountpoint="/", instance="raspberry-pi", job="node"}'
+        values: '1000x20'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: PlatteNichtEingehaengt
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: PlatteNichtEingehaengt
+        exp_alerts:
+          - exp_labels: {severity: critical, mountpoint: /mnt/data}
+            exp_annotations:
+              summary: "Platte unter /mnt/data ist nicht eingehängt"
+              description: "Backup und Cloud-Speicher haben kein Ziel. Prüfen mit: findmnt /mnt/data und journalctl -u mnt-data.mount"
+
+  # Platte eingehängt: kein Alarm. Fällt der node-exporter aus, meldet das
+  # ZielNichtErreichbar, nicht dieser Alarm.
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="raspberry-pi", job="node"}'
+        values: '1x10 0x20'
+      - series: 'node_filesystem_size_bytes{device="/dev/sda1", fstype="ext4", mountpoint="/mnt/data", instance="raspberry-pi", job="node"}'
+        values: '1000x10'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: PlatteNichtEingehaengt
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: PlatteNichtEingehaengt
+        exp_alerts: []
+
+  # Platte: 79 % belegt (790 / (790 + 210)). Kein Alarm, auch nach 20 Minuten.
+  - interval: 1m
+    input_series:
+      - series: 'node_filesystem_size_bytes{device="/dev/sda1", fstype="ext4", mountpoint="/mnt/data", instance="raspberry-pi", job="node"}'
+        values: '1050x30'
+      - series: 'node_filesystem_free_bytes{device="/dev/sda1", fstype="ext4", mountpoint="/mnt/data", instance="raspberry-pi", job="node"}'
+        values: '260x30'
+      - series: 'node_filesystem_avail_bytes{device="/dev/sda1", fstype="ext4", mountpoint="/mnt/data", instance="raspberry-pi", job="node"}'
+        values: '210x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: PlatteFuellstandHoch
+        exp_alerts: []

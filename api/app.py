@@ -79,7 +79,7 @@ def status():
 
         "disk": {
             "root": get_disk("/host"),
-            "external_drive": get_disk("/mnt/external_drive")
+            "external_drive": get_disk("/mnt/data")
         },
 
         "docker": get_docker_status()

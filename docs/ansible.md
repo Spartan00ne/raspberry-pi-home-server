@@ -9,7 +9,8 @@ einzelnen Härtungen bewirken und warum, steht in [`server-setup.md`](server-set
 
 | Rolle | Aufgabe |
 |---|---|
-| `base` | Grundpakete, rpcbind/NFS abschalten, externe Festplatte in `/etc/fstab` |
+| `base` | Grundpakete, rpcbind/NFS abschalten |
+| `storage` | Externe Platte (ext4) per UUID unter `/mnt/data` einhängen, Bereiche anlegen ([`backup.md`](backup.md#platte)) |
 | `ssh` | `authorized_keys` exklusiv setzen, Login nur mit Schlüssel |
 | `firewall` | ufw: eingehend alles gesperrt außer SSH, VNC, mDNS aus dem LAN und node-exporter |
 | `updates` | `unattended-upgrades` für Sicherheitsupdates |
@@ -59,7 +60,8 @@ Die CI (`.github/workflows/ci.yml`, Job *Ansible*) prüft jeden Pull Request:
 2. `ansible-lint` mit Profil `production` und ein Syntax-Check laufen ohne Fehler.
 3. Ein Lauf in einem frischen Debian-13-Container mit systemd. Der Container
    ist so vorbereitet wie ein Pi nach dem Imager (`ansible/tests/Dockerfile`).
-   Die Rollen `boot` und `firewall` werden dort übersprungen.
+   Die Rollen `boot` und `firewall` werden dort übersprungen, ebenso das
+   echte Einhängen der Platte (Tag `mount`). Der fstab-Eintrag wird geprüft.
 4. **Ein zweiter Lauf muss `changed=0` melden.** Damit ist bewiesen, dass das
    Playbook idempotent ist.
 

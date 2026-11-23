@@ -1,0 +1,70 @@
+# Hängt die externe Platte per UUID ein und legt ihre Bereiche an.
+# Formatiert wird nie automatisch (einmaliger Umzug: docs/backup.md#platte).
+#
+# Das echte Einhängen trägt das Tag "mount". Die CI überspringt es, weil es im
+# Testcontainer keine Platte gibt; der fstab-Eintrag wird dort trotzdem geprüft.
+
+- name: UUID der Platte muss gesetzt sein
+  ansible.builtin.assert:
+    that: storage_uuid is defined and storage_uuid | length > 0
+    fail_msg: "storage_uuid fehlt in der Inventory (blkid /dev/sdX1)"
+    quiet: true
+
+# Nur der fstab-Eintrag: Das Verzeichnis kann noch als Bind-Mount eines
+# laufenden Containers dienen.
+- name: Früheren Mountpunkt aus /etc/fstab entfernen
+  ansible.posix.mount:
+    path: "{{ item }}"
+    state: absent_from_fstab
+  loop: "{{ storage_old_mounts }}"
+  notify: Systemd neu einlesen
+
+- name: Mountpunkt anlegen
+  ansible.builtin.file:
+    path: "{{ storage_mount }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Eintrag in /etc/fstab
+  ansible.posix.mount:
+    path: "{{ storage_mount }}"
+    src: "UUID={{ storage_uuid }}"
+    fstype: ext4
+    opts: "{{ storage_opts }}"
+    dump: "0"
+    passno: "2"
+    state: present
+  notify: Systemd neu einlesen
+
+- name: Platte einhängen
+  tags: [mount]
+  block:
+    - name: Platte einhängen
+      ansible.posix.mount:
+        path: "{{ storage_mount }}"
+        src: "UUID={{ storage_uuid }}"
+        fstype: ext4
+        opts: "{{ storage_opts }}"
+        dump: "0"
+        passno: "2"
+        state: mounted
+      notify: Systemd neu einlesen
+
+    # Nur auf der eingehängten Platte, nie auf der SD-Karte darunter.
+    - name: Platte muss eingehängt sein
+      ansible.builtin.command: mountpoint -q {{ storage_mount }}
+      changed_when: false
+      check_mode: false
+
+    - name: Bereiche anlegen
+      ansible.builtin.file:
+        path: "{{ storage_mount }}/{{ item.name }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "{{ item.mode }}"
+      loop: "{{ storage_areas }}"
+      loop_control:
+        label: "{{ item.name }}"

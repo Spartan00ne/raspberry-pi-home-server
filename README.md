@@ -102,7 +102,7 @@ Voraussetzungen:
 
 - Docker und Docker Compose
 - eine `.env`-Datei mit `TUNNEL_TOKEN`
-- die externe Festplatte unter `/mnt/external_drive`
+- die externe Festplatte unter `/mnt/data`
 
 Aktualisiert wird automatisch per [CI/CD](docs/ci-cd.md). Manuell starten:
 

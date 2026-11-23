@@ -1,8 +1,9 @@
 # Backup des Zustands mit restic (siehe docs/backup.md).
 
-# Repository auf der externen Platte (base_external_drive in der Inventory).
-backup_mount: /mnt/external_drive
-backup_repository: "{{ backup_mount }}/restic"
+# Repository auf der externen Platte (Rolle storage, Bereich restic-monitoring).
+# require_repo bricht ab, wenn backup_mount nicht eingehängt ist.
+backup_mount: /mnt/data
+backup_repository: "{{ backup_mount }}/restic-monitoring"
 
 # Passwort des restic-Repositorys (Pflicht, aus dem Vault). Ohne dieses
 # Passwort sind die Backups wertlos.
