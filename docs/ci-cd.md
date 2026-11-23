@@ -46,6 +46,12 @@ Die Prüfwerkzeuge laufen in genau den Image-Versionen, die in den
 Compose-Dateien stehen. Ein Versionssprung in Compose wird also automatisch mit
 der neuen Version getestet.
 
+Ein zweiter Workflow, [`tailscale-acl.yml`](../.github/workflows/tailscale-acl.yml),
+prüft die Zugriffsregeln des Tailnets bei PRs und spielt sie auf `main` ein
+([`tailscale.md`](tailscale.md#gitops)). Er läuft nur, wenn sich die Policy
+oder der Workflow ändert. Deshalb ist er kein Pflicht-Check für `main`, und
+`scripts/deploy` wartet nicht auf ihn.
+
 [Dependabot](../.github/dependabot.yml) prüft wöchentlich GitHub Actions, das
 Python-Basisimage, die Python-Pakete und die Images in beiden Compose-Dateien
 und öffnet dafür Pull Requests. Deshalb sind alle Versionen fest gepinnt

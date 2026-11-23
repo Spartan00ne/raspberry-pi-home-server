@@ -169,15 +169,15 @@ jobs:
           done
           echo "systemd: $state"
 
-      # boot (cmdline.txt), firewall (ufw) und mount (externe Platte) gibt es
-      # im Container nicht sinnvoll.
+      # boot (cmdline.txt), firewall (ufw), mount (externe Platte) und tailnet
+      # (Anmeldung bei Tailscale) gibt es im Container nicht sinnvoll.
       - name: Erster Lauf
-        run: ansible-playbook -i tests/inventory site.yml --skip-tags boot,firewall,mount
+        run: ansible-playbook -i tests/inventory site.yml --skip-tags boot,firewall,mount,tailnet
 
       - name: Zweiter Lauf muss idempotent sein (changed=0)
         run: |
           set -o pipefail
-          ansible-playbook -i tests/inventory site.yml --skip-tags boot,firewall,mount | tee "$RUNNER_TEMP/second.log"
+          ansible-playbook -i tests/inventory site.yml --skip-tags boot,firewall,mount,tailnet | tee "$RUNNER_TEMP/second.log"
           sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/second.log" \
             | grep -qE '^pi-test +: ok=[0-9]+ +changed=0 +unreachable=0 +failed=0' \
             || { echo "::error::Zweiter Lauf hat noch etwas geändert (nicht idempotent)"; exit 1; }

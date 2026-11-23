@@ -1,0 +1,18 @@
+# Tailscale: Der Pi ist Mitglied im Tailnet (docs/tailscale.md, ADR 0001).
+
+# SHA-256 von https://pkgs.tailscale.com/stable/debian/trixie.noarmor.gpg
+# (Fingerprint 2596A99EAAB33821893C0A79458CA832957F5868, Stand 2026-11)
+tailscale_gpg_sha256: 3e03dacf222698c60b8e2f990b809ca1b3e104de127767864284e6c228f1fb39
+
+# Tags des Pi. Sie müssen in tailscale/policy.hujson unter tagOwners stehen.
+# Getaggte Geräte haben keinen Ablauf des Schlüssels; die Rolle prüft das.
+tailscale_tags:
+  - tag:cloud
+
+# Auth-Key für die erste Anmeldung (Pflicht nur dann, aus dem Vault).
+# Danach wird er nicht mehr gebraucht und darf abgelaufen sein.
+# tailscale_auth_key: ...
+
+# Nach so vielen Minuten meldet der Rettungs-Timer den Pi wieder ab
+# (tailscale down), falls nach der Anmeldung keine neue SSH-Verbindung klappt.
+tailscale_rescue_minutes: 5

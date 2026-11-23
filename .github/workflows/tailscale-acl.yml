@@ -1,0 +1,51 @@
+# Zugriffsregeln des Tailnets als Code (tailscale/policy.hujson, docs/tailscale.md).
+#
+# Pull Request: Die Policy wird bei Tailscale geprüft (Syntax und "tests"),
+# aber nicht eingespielt. Push auf main: Sie wird eingespielt und ersetzt die
+# Policy in der Admin-Konsole vollständig.
+#
+# Anmeldung über einen OAuth-Client mit nur dem Scope policy_file. Er läuft
+# nicht ab (anders als ein API-Key). Secrets: TS_OAUTH_CLIENT_ID, TS_OAUTH_SECRET.
+name: Tailscale-ACL
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - tailscale/policy.hujson
+      - .github/workflows/tailscale-acl.yml
+  pull_request:
+    paths:
+      - tailscale/policy.hujson
+      - .github/workflows/tailscale-acl.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Nie zwei Läufe gleichzeitig gegen dieselbe Policy, auch nicht abbrechen:
+# Ein halb gelaufenes Einspielen soll zu Ende laufen.
+concurrency:
+  group: tailscale-acl-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  acl:
+    name: Policy prüfen bzw. einspielen
+    runs-on: ubuntu-24.04
+    env:
+      # Eingespielt wird nur von main, nie aus einem PR oder Feature-Branch.
+      ACTION: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && 'apply' || 'test' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      # Per Commit gepinnt (v1.5.2): Die Action bekommt ein Secret mit
+      # Schreibrecht auf die Zugriffsregeln.
+      - uses: tailscale/gitops-acl-action@5a4a17f5708e9bf96f4ee915a95e9f83c2eebe1a # v1.5.2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          # "-" ist das Tailnet, zu dem der OAuth-Client gehört.
+          tailnet: "-"
+          policy-file: tailscale/policy.hujson
+          action: ${{ env.ACTION }}

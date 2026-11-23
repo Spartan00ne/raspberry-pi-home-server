@@ -1,0 +1,49 @@
+// Zugriffsregeln des Tailnets (ADR 0001, docs/tailscale.md).
+//
+// Diese Datei ist die einzige Quelle: Die GitHub Action
+// (.github/workflows/tailscale-acl.yml) testet sie bei Pull Requests und
+// spielt sie bei main ein. Änderungen in der Admin-Konsole werden dabei
+// überschrieben.
+//
+// Grundsatz: Erlaubt ist nur, was hier steht. Alles andere ist verboten.
+// Achtung: ufw filtert den Verkehr über tailscale0 nicht, Tailscale lässt ihn
+// vorher durch. Diese Policy ist also die Firewall im Tailnet.
+{
+	// Tags vergeben darf nur ein Admin des Tailnets (Auth-Keys mit Tag).
+	"tagOwners": {
+		// Der Pi mit dem Cloud-Speicher (Rolle tailscale).
+		"tag:cloud": ["autogroup:admin"],
+	},
+
+	"grants": [
+		// Meine eigenen Geräte dürfen alles.
+		{
+			"src": ["autogroup:member"],
+			"dst": ["*"],
+			"ip":  ["*"],
+		},
+		// Geteilte Benutzer (Node Sharing) erreichen nur den Cloud-Speicher
+		// über HTTPS. SSH und alles andere bleibt für sie unsichtbar.
+		{
+			"src": ["autogroup:shared"],
+			"dst": ["tag:cloud"],
+			"ip":  ["tcp:443"],
+		},
+		// tag:cloud selbst darf nichts erreichen. Die Regel zum Backup-Ziel
+		// folgt mit dem Backup (Phase 4, #20).
+	],
+
+	// Kein Tailscale SSH: SSH läuft nur über das LAN (docs/server-setup.md).
+	// Ohne Abschnitt "ssh" ist es abgeschaltet.
+
+	// Wird beim Testen und Einspielen geprüft. Ein Fehlschlag verhindert das
+	// Einspielen. Eigene Geräte und geteilte Benutzer lassen sich hier nicht
+	// testen, ohne eine E-Mail-Adresse ins öffentliche Repo zu schreiben.
+	"tests": [
+		{
+			// Der Pi erreicht weder sich selbst noch andere getaggte Geräte.
+			"src":  "tag:cloud",
+			"deny": ["tag:cloud:22", "tag:cloud:443"],
+		},
+	],
+}
