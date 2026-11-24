@@ -390,14 +390,14 @@
                 <pre><code>services:
 
   nginx-homepage:
-    image: nginx:1.31.3
+    image: nginx:1.31.9
     restart: unless-stopped
     volumes:
       - ./html:/usr/share/nginx/html:ro
       - ./nginx:/etc/nginx/conf.d:ro
 
   cloudflared:
-    image: cloudflare/cloudflared:2026.10.7
+    image: cloudflare/cloudflared:2026.11.0
     command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
 
   dashboard-api:

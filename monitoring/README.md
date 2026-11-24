@@ -75,7 +75,7 @@ die bei jedem Push in der CI laufen:
 
 ```bash
 docker run --rm -v "$PWD/prometheus:/etc/prometheus:ro" --entrypoint promtool \
-  prom/prometheus:v3.15.1 test rules /etc/prometheus/tests/alerts_test.yml
+  prom/prometheus:v3.16.0 test rules /etc/prometheus/tests/alerts_test.yml
 ```
 
 Regeln im Alertmanager ([`alertmanager/alertmanager.yml`](alertmanager/alertmanager.yml)):

@@ -4,7 +4,7 @@ name: monitoring
 
 services:
   prometheus:
-    image: prom/prometheus:v3.15.1
+    image: prom/prometheus:v3.16.0
     container_name: prometheus
     restart: unless-stopped
     command:
@@ -23,7 +23,7 @@ services:
     networks: [monitoring]
 
   alertmanager:
-    image: prom/alertmanager:v0.34.2
+    image: prom/alertmanager:v0.35.0
     container_name: alertmanager
     restart: unless-stopped
     command:
@@ -39,7 +39,7 @@ services:
     networks: [monitoring]
 
   grafana:
-    image: grafana/grafana:13.2.5
+    image: grafana/grafana:13.3.1
     container_name: grafana
     restart: unless-stopped
     environment:
