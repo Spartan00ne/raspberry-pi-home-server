@@ -96,6 +96,13 @@ nutzen `sudo docker`.
   Backup, Status und Pi-Metriken.
 - Monitoring-Details stehen in [`monitoring/README.md`](../monitoring/README.md).
 
+## 8. Tailscale — Rolle `tailscale`
+
+Der Pi ist mit dem Tag `tag:cloud` im Tailnet. Er übernimmt weder die
+DNS-Auflösung noch Routen von Tailscale, deshalb bleiben DNS und SSH über das
+LAN unverändert. ufw filtert den Verkehr über `tailscale0` nicht. Dort regelt
+die ACL-Policy im Repo den Zugriff. Details: [`tailscale.md`](tailscale.md).
+
 ## Prüfliste nach dem Aufsetzen
 
 ```bash
@@ -103,6 +110,7 @@ ansible-playbook site.yml --check                                     # changed=
 sudo sshd -T | grep -E '^(passwordauthentication|permitrootlogin) '   # no / no
 sudo ufw status verbose                                               # active
 systemctl is-active unattended-upgrades pi-metrics.timer              # active
+tailscale status                                                      # Pi mit tag:cloud
 sudo ss -tulpn                                                        # nur erwartete Ports
 cat /sys/fs/cgroup/cgroup.controllers                                 # enthält memory
 sudo docker ps                                                        # alle Container Up
@@ -116,6 +124,7 @@ vcgencmd get_throttled                                                # throttle
 | SSH nur mit Schlüssel | `sudo rm /etc/ssh/sshd_config.d/00-keys-only.conf && sudo systemctl reload ssh` |
 | Firewall | `sudo ufw disable` |
 | rpcbind | `sudo systemctl enable --now rpcbind.socket rpcbind.service` |
+| Tailscale | `sudo tailscale logout`, Gerät in der Admin-Konsole entfernen, `sudo apt purge tailscale` |
 | RAM-Messung | Sicherung `/boot/firmware/cmdline.txt.*~` zurückkopieren, dann `sudo reboot` |
 
 Wichtig: Danach auch die Rolle bzw. Variable anpassen, sonst stellt der nächste

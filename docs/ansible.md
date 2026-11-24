@@ -13,6 +13,7 @@ einzelnen Härtungen bewirken und warum, steht in [`server-setup.md`](server-set
 | `storage` | Externe Platte (ext4) per UUID unter `/mnt/data` einhängen, Bereiche anlegen ([`backup.md`](backup.md#platte)) |
 | `ssh` | `authorized_keys` exklusiv setzen, Login nur mit Schlüssel |
 | `firewall` | ufw: eingehend alles gesperrt außer SSH, VNC, mDNS aus dem LAN und node-exporter |
+| `tailscale` | Tailscale aus dem offiziellen Repository, Anmeldung mit `tag:cloud`, ohne DNS und Routen des Tailnets ([`tailscale.md`](tailscale.md)) |
 | `updates` | `unattended-upgrades` für Sicherheitsupdates |
 | `boot` | `cgroup_enable=memory` in der Kernel-Kommandozeile (RAM-Werte pro Container) |
 | `docker` | Docker aus dem offiziellen Repository, GPG-Schlüssel per SHA-256 gepinnt |
@@ -35,6 +36,8 @@ deshalb keine neuen Commits und ändert keine getrackten Dateien im Checkout.
   - Firewall-Änderungen laufen nur, wenn sich wirklich etwas ändert. Dann
     startet zuerst ein Rettungs-Timer, der ufw nach 5 Minuten abschaltet. Erst
     wenn eine **neue** SSH-Verbindung klappt, wird er gestoppt.
+  - Die erste Anmeldung bei Tailscale läuft genauso, der Rettungs-Timer führt
+    dort `tailscale down` aus.
 - **Kein automatischer Neustart.** Ändert sich die Kernel-Kommandozeile, meldet
   das Playbook das nur.
 - **Secrets im Ansible Vault** (`inventory/group_vars/pi/vault.yml`, AES-256).
@@ -61,7 +64,9 @@ Die CI (`.github/workflows/ci.yml`, Job *Ansible*) prüft jeden Pull Request:
 3. Ein Lauf in einem frischen Debian-13-Container mit systemd. Der Container
    ist so vorbereitet wie ein Pi nach dem Imager (`ansible/tests/Dockerfile`).
    Die Rollen `boot` und `firewall` werden dort übersprungen, ebenso das
-   echte Einhängen der Platte (Tag `mount`). Der fstab-Eintrag wird geprüft.
+   echte Einhängen der Platte (Tag `mount`) und die Anmeldung bei Tailscale
+   (Tag `tailnet-login`). Der fstab-Eintrag wird geprüft, Tailscale wird
+   installiert und gestartet.
 4. **Ein zweiter Lauf muss `changed=0` melden.** Damit ist bewiesen, dass das
    Playbook idempotent ist.
 

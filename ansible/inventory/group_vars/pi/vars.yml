@@ -15,6 +15,9 @@ firewall_lan_cidr: 192.168.178.0/24
 # (Rolle storage, docs/backup.md#platte).
 storage_uuid: c290a282-60db-4841-96b5-0b6401dbaa92
 
+# Auth-Key für die erste Anmeldung im Tailnet (Rolle tailscale, docs/tailscale.md)
+tailscale_auth_key: "{{ vault_tailscale_auth_key }}"
+
 # Secrets für die Anwendung (Werte aus dem Vault)
 app_tunnel_token: "{{ vault_tunnel_token }}"
 app_secrets:

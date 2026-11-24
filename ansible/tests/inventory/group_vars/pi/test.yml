@@ -8,6 +8,7 @@ vault_telegram_bot_token: "123456:ci-dummy\n"
 vault_telegram_chat_id: "1"
 vault_grafana_admin_password: ci-dummy-password
 vault_restic_password: ci-dummy-restic-password
+vault_tailscale_auth_key: ci-dummy-tailscale-auth-key
 
 # Öffentlicher HTTPS-Klon statt Deploy-Key
 app_repo_url: https://github.com/Spartan00ne/raspberry-pi-home-server.git

@@ -18,6 +18,8 @@
       tags: [ssh]
     - role: firewall
       tags: [firewall]
+    - role: tailscale
+      tags: [tailscale]
     - role: updates
       tags: [updates]
     - role: boot

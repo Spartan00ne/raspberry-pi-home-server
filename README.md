@@ -132,7 +132,8 @@ Der ganze Server ist mit **Ansible** beschrieben ([`ansible/`](ansible/)).
 Ein frisch geflashter Pi wird mit einem Playbook wieder zum laufenden Server:
 Härtung, Docker, Anwendung, Secrets und Timer.
 
-- 7 Rollen (`base`, `ssh`, `firewall`, `updates`, `boot`, `docker`, `app`)
+- 10 Rollen (`base`, `storage`, `ssh`, `firewall`, `tailscale`, `updates`,
+  `boot`, `docker`, `app`, `backup`)
 - Secrets verschlüsselt im Ansible Vault, die CI kennt das Passwort nie
 - Schutz vor Aussperren: Schlüsselprüfung per `assert`, sshd-Validierung,
   Rettungs-Timer für die Firewall
@@ -154,6 +155,8 @@ Umgesetzt wird es mit Ansible.
 - nicht benötigte Dienste (rpcbind/NFS) abgeschaltet
 - keine offenen Ports für Web-Dienste: Die Website ist nur über den Cloudflare
   Tunnel erreichbar, Admin-Oberflächen nur lokal per SSH-Tunnel
+- Tailscale mit engen Zugriffsregeln als Code: Die ACL-Policy liegt im Repo
+  und wird per GitHub Action geprüft und eingespielt ([`docs/tailscale.md`](docs/tailscale.md))
 
 ## Nächste Erweiterungen
 
