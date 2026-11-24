@@ -397,7 +397,7 @@
       - ./nginx:/etc/nginx/conf.d:ro
 
   cloudflared:
-    image: cloudflare/cloudflared:2026.11.0
+    image: cloudflare/cloudflared:2026.11.2
     command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
 
   dashboard-api:
