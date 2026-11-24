@@ -28,7 +28,7 @@
     owner: root
     group: root
     mode: "0644"
-  notify: Paketlisten aktualisieren
+  notify: Paketlisten aktualisieren (Docker)
 
 - name: Neues Repository vor der Installation einlesen
   ansible.builtin.meta: flush_handlers

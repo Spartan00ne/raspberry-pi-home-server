@@ -29,6 +29,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Prüft Syntax, Ausdrücke und Kontexte der Workflows, dazu die
+      # run-Blöcke mit dem mitgelieferten ShellCheck.
+      - name: Actionlint (Workflows)
+        run: |
+          docker run --rm -v "$PWD:/repo:ro" -w /repo rhysd/actionlint:1.7.12 -color
+
       - name: ShellCheck (scripts/)
         run: shellcheck scripts/*
 
@@ -131,7 +137,7 @@ jobs:
           found=0
           while IFS= read -r f; do
             found=1
-            head -1 "$f" | grep -q '^\$ANSIBLE_VAULT;' || { echo "::error file=ansible/$f::Nicht verschlüsselt"; exit 1; }
+            [[ "$(head -1 "$f")" == "\$ANSIBLE_VAULT;"* ]] || { echo "::error file=ansible/$f::Nicht verschlüsselt"; exit 1; }
             echo "ok: $f"
           done < <(git ls-files 'inventory/**vault*.yml')
           [ "$found" = 1 ] || { echo "::error::Keine Vault-Datei gefunden"; exit 1; }
@@ -144,6 +150,13 @@ jobs:
           # Die CI bekommt das echte Vault-Passwort nie; das Test-Inventar braucht keins.
           echo "ci-has-no-vault-password" > "$RUNNER_TEMP/vault-pass"
           echo "ANSIBLE_VAULT_PASSWORD_FILE=$RUNNER_TEMP/vault-pass" >> "$GITHUB_ENV"
+
+      # Handler gelten im ganzen Play. Bei gleichem Namen in zwei Rollen
+      # löst notify nur einen davon aus, nicht unbedingt den der eigenen Rolle.
+      - name: Handler-Namen sind eindeutig
+        run: |
+          dup=$(grep -h '^- name:' roles/*/handlers/main.yml | sort | uniq -d)
+          [ -z "$dup" ] || { echo "::error::Doppelte Handler-Namen: $dup"; exit 1; }
 
       - name: ansible-lint (Profil production)
         run: ansible-lint --profile production
