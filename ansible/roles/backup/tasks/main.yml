@@ -58,7 +58,7 @@
     group: root
     mode: "0644"
   loop: "{{ backup_systemd_units }}"
-  notify: Systemd neu einlesen
+  notify: Systemd neu einlesen (Backup-Units)
 
 - name: Geänderte Units sofort einlesen
   ansible.builtin.meta: flush_handlers

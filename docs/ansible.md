@@ -59,7 +59,8 @@ deshalb keine neuen Commits und ändert keine getrackten Dateien im Checkout.
 
 Die CI (`.github/workflows/ci.yml`, Job *Ansible*) prüft jeden Pull Request:
 
-1. Die Vault-Dateien sind verschlüsselt.
+1. Die Vault-Dateien sind verschlüsselt, und kein Handler-Name kommt in zwei
+   Rollen vor. Sonst löst `notify` womöglich den Handler der anderen Rolle aus.
 2. `ansible-lint` mit Profil `production` und ein Syntax-Check laufen ohne Fehler.
 3. Ein Lauf in einem frischen Debian-13-Container mit systemd. Der Container
    ist so vorbereitet wie ein Pi nach dem Imager (`ansible/tests/Dockerfile`).
@@ -104,6 +105,12 @@ ansible-playbook upgrade.yml                 # monatlich: Voll-Upgrade inkl. Ker
 ansible-playbook restore.yml -e force=true   # Zustand aus dem Backup zurückspielen
 ansible-vault edit inventory/group_vars/pi/vault.yml   # Secrets ändern
 ```
+
+Auf einem Pi, dem ein APT-Repository noch fehlt (Neuaufbau oder neue Rolle
+wie `docker` oder `tailscale`), bricht `--check` bei der Paketinstallation ab:
+„No package matching … is available“. Das ist erwartet. Im Check-Modus wird
+das Repository nur angezeigt, nicht eingetragen, also kennt apt das Paket
+noch nicht. Bis zu dieser Stelle ist die Vorschau gültig.
 
 Die Erwartung im Normalbetrieb: `--check` meldet `changed=0`. Jede Abweichung
 heißt, dass jemand von Hand etwas geändert hat (Drift).

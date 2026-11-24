@@ -17,7 +17,7 @@
     path: "{{ item }}"
     state: absent_from_fstab
   loop: "{{ storage_old_mounts }}"
-  notify: Systemd neu einlesen
+  notify: Systemd neu einlesen (Mount-Units)
 
 - name: Mountpunkt anlegen
   ansible.builtin.file:
@@ -36,7 +36,7 @@
     dump: "0"
     passno: "2"
     state: present
-  notify: Systemd neu einlesen
+  notify: Systemd neu einlesen (Mount-Units)
 
 - name: Platte einhängen
   tags: [mount]
@@ -50,7 +50,7 @@
         dump: "0"
         passno: "2"
         state: mounted
-      notify: Systemd neu einlesen
+      notify: Systemd neu einlesen (Mount-Units)
 
     # Nur auf der eingehängten Platte, nie auf der SD-Karte darunter.
     - name: Platte muss eingehängt sein
