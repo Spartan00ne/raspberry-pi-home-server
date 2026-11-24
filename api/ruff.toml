@@ -1,5 +1,5 @@
 # Lint-Regeln für die API, geprüft in der CI (Ruff-Version siehe ci.yml)
-target-version = "py312"
+target-version = "py315"
 
 [lint]
 # Fehler (E, F), Import-Sortierung (I), moderne Syntax (UP), typische Bugs (B)
