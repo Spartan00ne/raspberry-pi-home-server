@@ -61,8 +61,9 @@ So 04:00        homepage-restore-test.timer
 - **Erst vollständig zurückspielen, dann ersetzen**: Ein Restore landet immer
   zuerst in `/var/tmp`. Erst wenn restic fertig ist, werden die Volumes per
   `rsync --delete` ersetzt. Bricht restic ab, bleiben die Live-Daten unberührt.
-- **Nur lokal** auf der USB-Platte, ohne Kopie außer Haus. Bewusst in Kauf
-  genommen: Bei Diebstahl, Brand oder Überspannung sind Pi und Backup
+- **Nur lokal** auf der USB-Platte, ohne Kopie außer Haus. Das gilt für das
+  Monitoring, der Cloud-Speicher bekommt ein eigenes
+  [Backup-Ziel](backup-ziel.md) außer Haus. Bewusst in Kauf genommen: Bei Diebstahl, Brand oder Überspannung sind Pi und Backup
   gleichzeitig weg. Verloren wäre dann nur die Monitoring-Historie, alles
   andere kommt aus Git und Vault.
 - **Aufbewahrung getrennt nach Tag** (`--group-by host,paths,tags`): Reguläre

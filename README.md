@@ -72,7 +72,7 @@ Aufbau, Alarme, Sicherheitsentscheidungen und Einrichtung stehen in
 ## CI/CD
 
 Jede Änderung wird von GitHub Actions geprüft: Lint (ShellCheck, Ruff,
-Hadolint), alle Konfigurationen (Compose, Prometheus inkl. Unit-Tests der
+Hadolint, PSScriptAnalyzer), alle Konfigurationen (Compose, Prometheus inkl. Unit-Tests der
 Alarme, Alertmanager, nginx) und ein Smoke-Test des API-Images. Das Image wird
 auf einem ARM64-Runner gebaut und in der GitHub Container Registry
 veröffentlicht.
@@ -95,6 +95,11 @@ Details und Begründung: [`docs/ci-cd.md`](docs/ci-cd.md)
   Ein wöchentlicher Restore-Test spielt das neueste Backup in Wegwerf-Container
   zurück und prüft es; [`ansible/restore.yml`](ansible/restore.yml) stellt im
   Ernstfall wieder her. Details: [`docs/backup.md`](docs/backup.md)
+- Backup-Ziel außer Haus für den Cloud-Speicher: ein rest-server im Modus
+  append-only auf einem Windows-PC, nur über Tailscale erreichbar. Der Pi kann
+  dort Snapshots anlegen, aber keine löschen. Eingerichtet wird er mit
+  [`windows/backup-ziel.ps1`](windows/backup-ziel.ps1). Details:
+  [`docs/backup-ziel.md`](docs/backup-ziel.md)
 
 ## Betrieb
 

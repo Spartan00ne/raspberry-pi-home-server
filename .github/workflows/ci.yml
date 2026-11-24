@@ -50,6 +50,24 @@ jobs:
           done
           exit $rc
 
+      # Das Einrichtungsskript des Backup-Ziels läuft nur auf dem Windows-PC und
+      # wird dort von Hand abgenommen. Hier läuft die statische Prüfung, mit
+      # allen Regeln (auch Information). pwsh ist im Runner-Image enthalten.
+      - name: PSScriptAnalyzer (windows/)
+        shell: pwsh
+        env:
+          PSSA_VERSION: "1.25.0"
+        run: |
+          Install-Module PSScriptAnalyzer -RequiredVersion $env:PSSA_VERSION -Scope CurrentUser -Force
+          Import-Module PSScriptAnalyzer -RequiredVersion $env:PSSA_VERSION
+          $findings = @(Invoke-ScriptAnalyzer -Path windows -Recurse)
+          foreach ($f in $findings) {
+            $file = [IO.Path]::GetRelativePath($PWD, $f.ScriptPath)
+            "::error file=$file,line=$($f.Line)::$($f.RuleName): $($f.Message)"
+          }
+          if ($findings.Count) { exit 1 }
+          'Keine Befunde.'
+
       - name: Ruff (Python-API)
         run: pipx run ruff==0.17.5 check --no-cache api
 
