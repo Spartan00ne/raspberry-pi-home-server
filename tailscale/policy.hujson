@@ -33,7 +33,7 @@
 			"ip":  ["tcp:443"],
 		},
 		// Der Pi erreicht auf dem Backup-Ziel nur den rest-server (ADR 0003).
-		// Der Port steht auch in windows/backup-ziel.ps1 (-Port).
+		// Der Port steht auch in windows/backup-ziel.ps1 ($Port).
 		{
 			"src": ["tag:cloud"],
 			"dst": ["tag:backup-target"],

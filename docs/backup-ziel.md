@@ -32,7 +32,7 @@ Restore-Test (#30), die monatliche Prüfung und das Ausdünnen auf dem PC (#31).
 | Windows-Firewall-Regel `Backup-Ziel-rest-server` | Eingehend nur TCP 8000 auf der Tailscale-IP, nur aus `100.64.0.0/10`, nur für `rest-server.exe`. |
 | `--append-only` | Der Pi kann nichts löschen oder überschreiben, also auch kein `forget` und kein `prune`. |
 | restic-Verschlüsselung | Eine gestohlene Platte gibt nichts preis. Das Passwort hat nur der Pi (Vault), später der PC für die Prüfung (#31). |
-| Eigenes virtuelles Dienstkonto | rest-server darf nur in sein Verzeichnis und seine Logs schreiben. Das Verzeichnis ist nur für Administratoren, SYSTEM und dieses Konto zugänglich. |
+| Eigenes virtuelles Dienstkonto | rest-server darf nur in sein Verzeichnis und seine Logs schreiben. Beide (`E:\Backup-Ziel`, `C:\ProgramData\Backup-Ziel`) sind nur für Administratoren, SYSTEM und dieses Konto zugänglich. |
 
 ## Entscheidungen
 
@@ -101,8 +101,8 @@ Zugriffsrechte setzen, das Skript warnt dann).
 6. **Zweiter Lauf** mit demselben Befehl: Er muss mit `Änderungen: 0` enden.
 
 Jede Zeile der Ausgabe beginnt mit `ok:` (stimmt schon) oder `geändert:`. Der
-Port (Standard 8000, `-Port`) muss zur Regel in
-[`policy.hujson`](../tailscale/policy.hujson) passen.
+Port 8000 steht fest im Skript (`$Port`) und in der Regel in
+[`policy.hujson`](../tailscale/policy.hujson); ändern nur an beiden Stellen.
 
 Der Pi spricht den PC über die **Tailscale-IP** an, nicht über den
 MagicDNS-Namen, weil er die DNS-Auflösung von Tailscale nicht nutzt
@@ -162,13 +162,13 @@ Das Test-Repository kann nur der PC selbst löschen:
 | Was | Wo |
 |---|---|
 | Programme | `C:\Program Files\Backup-Ziel\` (restic, rest-server, WinSW samt `rest-server-dienst.xml`) |
-| Logs | `C:\ProgramData\Backup-Ziel\logs\`: `rest-server.out.log` (jede Anfrage), `rest-server.err.log`, `rest-server.wrapper.log`, je 5 × 10 MB |
+| Logs | `C:\ProgramData\Backup-Ziel\logs\`: `rest-server-dienst.out.log` (jede Anfrage), `rest-server-dienst.err.log`, `rest-server-dienst.wrapper.log` (WinSW benennt sie nach seiner exe), je 5 × 10 MB |
 | Repositorys | das Verzeichnis aus `-Repository`, z. B. `E:\Backup-Ziel\` |
 
 ```powershell
 Get-Service rest-server
 Restart-Service rest-server
-Get-Content C:\ProgramData\Backup-Ziel\logs\rest-server.err.log -Tail 20
+Get-Content C:\ProgramData\Backup-Ziel\logs\rest-server-dienst.err.log -Tail 20
 ```
 
 Der PC darf aus sein: Der Pi versucht es stündlich und sichert, sobald der PC

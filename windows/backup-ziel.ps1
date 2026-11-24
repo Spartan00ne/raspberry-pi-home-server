@@ -25,10 +25,6 @@ Verzeichnis für die Repositorys auf der externen Platte, getrennt vom Bereich
 für die manuellen Backups, z. B. E:\Backup-Ziel. Nicht das Wurzelverzeichnis
 und nicht das Systemlaufwerk.
 
-.PARAMETER Port
-Port des rest-servers. Muss zur Regel für tag:cloud in tailscale/policy.hujson
-passen.
-
 .EXAMPLE
 powershell -ExecutionPolicy Bypass -File .\backup-ziel.ps1 -Repository E:\Backup-Ziel
 #>
@@ -38,10 +34,7 @@ powershell -ExecutionPolicy Bypass -File .\backup-ziel.ps1 -Repository E:\Backup
 param(
     [Parameter(Mandatory)]
     [ValidatePattern('^[A-Za-z]:\\.+')]
-    [string] $Repository,
-
-    [ValidateRange(1, 65535)]
-    [int] $Port = 8000
+    [string] $Repository
 )
 
 Set-StrictMode -Version Latest
@@ -86,12 +79,14 @@ $Pinned = @{
 
 # --- Feste Namen ---------------------------------------------------------------
 $Tag = 'tag:backup-target'                 # tagOwners in tailscale/policy.hujson
+$Port = 8000                               # Regel für tag:cloud in tailscale/policy.hujson
 $TailnetRange = '100.64.0.0/10'            # Adressbereich der Tailscale-Geräte
 $ServiceName = 'rest-server'
 $ServiceAccount = "NT SERVICE\$ServiceName"
 $FirewallRuleName = 'Backup-Ziel-rest-server'
 $InstallDir = Join-Path $env:ProgramFiles 'Backup-Ziel'
-$LogDir = Join-Path $env:ProgramData 'Backup-Ziel\logs'
+$DataDir = Join-Path $env:ProgramData 'Backup-Ziel'
+$LogDir = Join-Path $DataDir 'logs'
 $Tailscale = Join-Path $env:ProgramFiles 'Tailscale\tailscale.exe'
 $ResticExe = Join-Path $InstallDir 'restic.exe'
 $RestServerExe = Join-Path $InstallDir 'rest-server.exe'
@@ -270,7 +265,7 @@ function Test-FirewallRule([string] $LocalAddress) {
     $portFilter.Protocol -eq 'TCP' -and "$($portFilter.LocalPort)" -eq "$Port" -and "$($portFilter.RemotePort)" -eq 'Any' -and
     "$($addressFilter.LocalAddress)" -eq $LocalAddress -and
     "$($addressFilter.RemoteAddress)" -in @($TailnetRange, '100.64.0.0/255.192.0.0') -and
-    $appFilter.Program -eq $RestServerExe
+    [Environment]::ExpandEnvironmentVariables($appFilter.Program) -eq $RestServerExe
 }
 
 # --- Prüfen der Eingaben -----------------------------------------------------------
@@ -315,8 +310,12 @@ Wait-TailscaleService
 # braucht nur die erste Anmeldung (NeedsLogin). Er geht als Datei an
 # tailscale, damit er nicht in der Prozessliste steht.
 $status = Get-TailscaleStatus
-$upArgs = @('up', '--unattended', "--advertise-tags=$Tag", '--accept-dns=false', '--accept-routes=false')
-switch ($status.BackendState) {
+$backendState = Get-JsonProperty $status 'BackendState'
+# DNS und Routen des PCs bleiben unverändert (wie beim Pi), und Tailscale läuft
+# auch ohne angemeldeten Windows-Benutzer.
+$prefArgs = @('--unattended', '--accept-dns=false', '--accept-routes=false')
+$upArgs = @('up', "--advertise-tags=$Tag") + $prefArgs
+switch ($backendState) {
     'Running' {
         Write-Unchanged 'Tailscale angemeldet'
     }
@@ -342,29 +341,31 @@ switch ($status.BackendState) {
     default {
         # Stopped (z. B. nach "tailscale down"): Der Schlüssel des Geräts gilt noch.
         Invoke-Native $Tailscale $upArgs
-        Add-Change "Tailscale gestartet (war $($status.BackendState))"
+        Add-Change "Tailscale gestartet (war $backendState)"
     }
 }
 
 $status = Get-TailscaleStatus
+$backendState = Get-JsonProperty $status 'BackendState'
 $self = Get-JsonProperty $status 'Self'
 $tags = @(Get-JsonProperty $self 'Tags')
-if ($status.BackendState -ne 'Running' -or $tags -notcontains $Tag) {
-    throw ("Tailscale läuft ohne den Tag $Tag (Status $($status.BackendState), Tags: $($tags -join ', ')). " +
+if ($backendState -ne 'Running' -or $tags -notcontains $Tag) {
+    throw ("Tailscale läuft ohne den Tag $Tag (Status $backendState, Tags: $($tags -join ', ')). " +
         "Ist der PC als eigenes Gerät angemeldet, erst 'tailscale logout', dann das Skript erneut starten.")
 }
 if (Get-JsonProperty $self 'KeyExpiry') {
     throw 'Der Schlüssel des PCs läuft ab. Getaggte Geräte haben keinen Ablauf, ist der Tag richtig vergeben?'
 }
 
-# DNS und Routen des PCs bleiben unverändert, und Tailscale läuft auch ohne
-# angemeldeten Windows-Benutzer (unattended).
+# Weichen die Einstellungen ab (etwa nach "tailscale up" von Hand), korrigieren.
+# "debug prefs" ist keine stabile Schnittstelle: Meldet jeder Lauf hier eine
+# Änderung, haben sich die Feldnamen geändert.
 $prefsJson = & $Tailscale debug prefs
 if ($LASTEXITCODE -ne 0) { throw 'tailscale debug prefs fehlgeschlagen.' }
 $prefs = ($prefsJson -join "`n") | ConvertFrom-Json
 if ((Get-JsonProperty $prefs 'CorpDNS') -or (Get-JsonProperty $prefs 'RouteAll') -or
     -not (Get-JsonProperty $prefs 'ForceDaemon')) {
-    Invoke-Native $Tailscale @('set', '--accept-dns=false', '--accept-routes=false', '--unattended')
+    Invoke-Native $Tailscale (@('set') + $prefArgs)
     Add-Change 'Tailscale: DNS und Routen aus, unattended an'
 }
 else {
@@ -394,7 +395,7 @@ Install-PinnedBinary -Name 'WinSW' -Pin $Pinned.WinSW -Destination $WrapperExe
 
 # --- Dienst --------------------------------------------------------------------------
 
-Install-Directory (Split-Path $LogDir) 'Daten des Dienstes'
+Install-Directory $DataDir 'Daten des Dienstes'
 Install-Directory $LogDir 'Logs'
 Install-Directory $Repository 'Repositorys'
 
@@ -456,7 +457,8 @@ else {
     Write-Unchanged "Dienst läuft als $ServiceAccount"
 }
 
-Grant-ServiceDirectoryAccess $LogDir 'Logs'
+# Die Logs erben die Rechte von $DataDir.
+Grant-ServiceDirectoryAccess $DataDir 'Daten des Dienstes'
 if ($supportsAcl) {
     Grant-ServiceDirectoryAccess $Repository 'Repositorys'
 }

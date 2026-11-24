@@ -72,10 +72,10 @@ Aufbau, Alarme, Sicherheitsentscheidungen und Einrichtung stehen in
 ## CI/CD
 
 Jede Änderung wird von GitHub Actions geprüft: Lint (ShellCheck, Ruff,
-Hadolint, PSScriptAnalyzer), alle Konfigurationen (Compose, Prometheus inkl. Unit-Tests der
-Alarme, Alertmanager, nginx) und ein Smoke-Test des API-Images. Das Image wird
-auf einem ARM64-Runner gebaut und in der GitHub Container Registry
-veröffentlicht.
+Hadolint, PSScriptAnalyzer), alle Konfigurationen (Compose, Prometheus inkl.
+Unit-Tests der Alarme, Alertmanager, nginx) und ein Smoke-Test des API-Images.
+Das Image wird auf einem ARM64-Runner gebaut und in der GitHub Container
+Registry veröffentlicht.
 
 Ausgerollt wird pull-basiert (GitOps): Ein systemd-Timer auf dem Pi prüft alle
 2 Minuten, ob es auf `main` einen neuen Commit mit grüner CI gibt, rollt ihn
