@@ -84,7 +84,7 @@ services:
       - /:/host:ro,rslave
 
   cadvisor:
-    image: ghcr.io/google/cadvisor:v0.60.6
+    image: ghcr.io/google/cadvisor:v0.61.1
     container_name: cadvisor
     restart: unless-stopped
     privileged: true
