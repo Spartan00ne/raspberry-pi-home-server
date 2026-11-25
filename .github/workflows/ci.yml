@@ -114,8 +114,9 @@ jobs:
 
       - name: Nginx-Konfiguration
         run: |
-          # Upstream-Namen gibt es nur im Docker-Netz auf dem Pi.
-          docker run --rm --add-host dashboard-api:127.0.0.1 \
+          # Ohne Upstream-Hosts: nginx muss auch starten, wenn sie fehlen
+          # (Auflösung erst zur Laufzeit, siehe nginx/default.conf).
+          docker run --rm \
             -v "$PWD/nginx:/etc/nginx/conf.d:ro" "$NGINX_IMAGE" nginx -t
 
   ansible:
