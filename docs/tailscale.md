@@ -10,6 +10,7 @@ Tailscale und nicht der Cloudflare-Tunnel: [ADR 0001](adr/0001-tailscale-statt-c
 | Installation und Anmeldung des Pi | Rolle [`tailscale`](../ansible/roles/tailscale/) |
 | Zugriffsregeln (ACL-Policy) | [`tailscale/policy.hujson`](../tailscale/policy.hujson) |
 | Prüfen und Einspielen der Policy | [`.github/workflows/tailscale-acl.yml`](../.github/workflows/tailscale-acl.yml) |
+| Windows-PC als Backup-Ziel (`tag:backup-target`) | [`windows/backup-ziel.ps1`](../windows/backup-ziel.ps1), [`backup-ziel.md`](backup-ziel.md) |
 
 ## Der Pi im Tailnet
 
@@ -56,14 +57,16 @@ Erlaubt ist nur, was in der Policy steht.
 |---|---|---|
 | Meine eigenen Geräte (`autogroup:member`) | alle Geräte | alles |
 | Geteilte Benutzer (`autogroup:shared`) | `tag:cloud` | nur `tcp:443` |
-| `tag:cloud` (der Pi) | – | nichts |
+| `tag:cloud` (der Pi) | `tag:backup-target` | nur `tcp:8000` (rest-server) |
+| `tag:backup-target` (der Windows-PC) | – | nichts |
 
 - Weitere Benutzer bekommen den Pi per **Node Sharing**, sie werden nicht
   Mitglied im Tailnet. Damit sehen sie nur den geteilten Pi und darauf nur
   Port 443, kein SSH.
-- Die Regel `tag:cloud` → `tag:backup-target` (Port des rest-servers) kommt
-  mit dem Backup-Ziel in Phase 4 hinzu.
-- Den Tag `tag:cloud` darf nur ein Admin des Tailnets vergeben (`tagOwners`).
+- Der Pi erreicht auf dem Backup-Ziel nur den rest-server, kein SMB, RDP
+  oder SSH ([ADR 0003](adr/0003-backup-ziel-append-only-auf-windows-pc.md)).
+  Ein kompromittierter Pi kommt so nicht weiter auf den PC.
+- Die Tags darf nur ein Admin des Tailnets vergeben (`tagOwners`).
 
 > **Achtung ufw:** ufw filtert den Verkehr über `tailscale0` nicht. Tailscale
 > setzt eine eigene Kette `ts-input` an den Anfang von `INPUT` und lässt dort
@@ -73,9 +76,10 @@ Erlaubt ist nur, was in der Policy steht.
 ### Tests in der Policy
 
 Der Abschnitt `tests` wird bei jedem Prüfen und Einspielen ausgewertet. Ein
-Fehlschlag verhindert das Einspielen. Getestet wird, dass `tag:cloud` nichts
-erreicht. Tests für eigene Geräte und geteilte Benutzer bräuchten eine
-E-Mail-Adresse als Quelle. Die gehört nicht ins öffentliche Repo.
+Fehlschlag verhindert das Einspielen. Getestet wird, dass `tag:cloud` auf
+`tag:backup-target` nur Port 8000 erreicht (und nicht 22, 445, 3389, 5985 oder
+8001) und dass `tag:backup-target` nichts erreicht. Tests für eigene Geräte
+und geteilte Benutzer bräuchten eine E-Mail-Adresse als Quelle. Die gehört nicht ins öffentliche Repo.
 
 ### GitOps
 

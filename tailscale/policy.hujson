@@ -13,6 +13,9 @@
 	"tagOwners": {
 		// Der Pi mit dem Cloud-Speicher (Rolle tailscale).
 		"tag:cloud": ["autogroup:admin"],
+		// Der Windows-PC im anderen Haus mit dem rest-server
+		// (windows/backup-ziel.ps1, docs/backup-ziel.md).
+		"tag:backup-target": ["autogroup:admin"],
 	},
 
 	"grants": [
@@ -29,8 +32,14 @@
 			"dst": ["tag:cloud"],
 			"ip":  ["tcp:443"],
 		},
-		// tag:cloud selbst darf nichts erreichen. Die Regel zum Backup-Ziel
-		// folgt mit dem Backup (Phase 4, #20).
+		// Der Pi erreicht auf dem Backup-Ziel nur den rest-server (ADR 0003).
+		// Der Port steht auch in windows/backup-ziel.ps1 ($Port).
+		{
+			"src": ["tag:cloud"],
+			"dst": ["tag:backup-target"],
+			"ip":  ["tcp:8000"],
+		},
+		// Sonst erreichen tag:cloud und tag:backup-target nichts.
 	],
 
 	// Kein Tailscale SSH: SSH läuft nur über das LAN (docs/server-setup.md).
@@ -41,9 +50,29 @@
 	// testen, ohne eine E-Mail-Adresse ins öffentliche Repo zu schreiben.
 	"tests": [
 		{
-			// Der Pi erreicht weder sich selbst noch andere getaggte Geräte.
+			// Der Pi erreicht den rest-server auf dem Backup-Ziel (nur TCP).
+			"src":    "tag:cloud",
+			"proto":  "tcp",
+			"accept": ["tag:backup-target:8000"],
+		},
+		{
+			// Sonst erreicht er auf dem Backup-Ziel nichts, weder SSH, SMB,
+			// RDP, WinRM noch andere Ports, und sich selbst gar nicht.
 			"src":  "tag:cloud",
-			"deny": ["tag:cloud:22", "tag:cloud:443"],
+			"deny": [
+				"tag:backup-target:22",
+				"tag:backup-target:445",
+				"tag:backup-target:3389",
+				"tag:backup-target:5985",
+				"tag:backup-target:8001",
+				"tag:cloud:22",
+				"tag:cloud:443",
+			],
+		},
+		{
+			// Das Backup-Ziel erreicht nichts, auch den Pi nicht.
+			"src":  "tag:backup-target",
+			"deny": ["tag:cloud:22", "tag:cloud:443", "tag:backup-target:8000"],
 		},
 	],
 }

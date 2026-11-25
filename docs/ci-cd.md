@@ -7,7 +7,8 @@ und meldet das per Telegram.
 
 ```text
  git push ──► GitHub Actions (CI)                       Raspberry Pi
-              ├─ Lint: ShellCheck, Ruff, Hadolint         homepage-deploy.timer (alle 2 min)
+              ├─ Lint: ShellCheck, Ruff, Hadolint,        homepage-deploy.timer (alle 2 min)
+              │  PSScriptAnalyzer                           │
               ├─ Konfiguration: Compose, promtool,          │
               │  Alarm-Unit-Tests, amtool, blackbox,        ├─ git fetch: neuer Commit auf main?
               │  nginx -t                                   ├─ CI für diesen Commit grün? (GitHub-API)
@@ -38,7 +39,7 @@ Läuft bei jedem Push, jedem Pull Request und manuell.
 
 | Job | Prüft |
 |---|---|
-| **Lint** | Workflows samt `run:`-Blöcken (actionlint), Shell-Skripte (ShellCheck), Python-API (Ruff, Regeln in [`api/ruff.toml`](../api/ruff.toml)), Dockerfile (Hadolint), Grafana-Dashboards (gültiges JSON) |
+| **Lint** | Workflows samt `run:`-Blöcken (actionlint), Shell-Skripte (ShellCheck), Python-API (Ruff, Regeln in [`api/ruff.toml`](../api/ruff.toml)), Dockerfile (Hadolint), PowerShell-Skript des [Backup-Ziels](backup-ziel.md) (PSScriptAnalyzer, alle Regeln), Grafana-Dashboards (gültiges JSON) |
 | **Konfiguration prüfen** | beide Compose-Dateien, Prometheus-Konfiguration und Regeln (`promtool check`), [Unit-Tests der Alarme](../monitoring/prometheus/tests/alerts_test.yml) (`promtool test rules`), Alertmanager (`amtool`), Blackbox-Exporter, nginx (`nginx -t`) |
 | **Image bauen (arm64)** | baut die Dashboard-API auf einem nativen ARM64-Runner, startet sie und fragt `/api/health` und `/api/status` ab. Nur auf `main`: Push nach GHCR als `sha-<commit>` und `main`. |
 
