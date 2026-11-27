@@ -171,11 +171,12 @@ jobs:
       # Ansible mit, und pipx install lässt eine vorhandene Installation stehen,
       # statt die gepinnte Version zu installieren. venv und Collections kommen
       # aus dem Cache. Das venv verweist auf das Python des Runner-Images, daher
-      # gehört dessen Version (ImageVersion, nur als Shell-Variable da) in den
-      # Schlüssel, neben den gepinnten Versionen.
+      # gehört dessen Version in den Schlüssel, neben den gepinnten Versionen.
+      # Nicht ImageVersion: Im Runner-Pool laufen mehrere Image-Stände
+      # gleichzeitig, der Cache würde ständig verfehlt.
       - name: Cache-Schlüssel
         id: ansible-key
-        run: echo "image=${ImageOS}-${ImageVersion}" >> "$GITHUB_OUTPUT"
+        run: echo "image=${ImageOS}-py$(python3 -c 'import platform; print(platform.python_version())')" >> "$GITHUB_OUTPUT"
 
       - name: Ansible aus dem Cache holen
         id: ansible-cache
