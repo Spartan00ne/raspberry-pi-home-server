@@ -26,8 +26,8 @@ Website                 │
 
 - **nginx-homepage**: liefert die statischen Dateien aus `html/`.
 - **cloudflared**: stellt den Cloudflare Tunnel zur Domain `koffler-online.de` bereit.
-- **dashboard-api**: Flask-/Gunicorn-API auf Port 8080 für Systemdaten wie CPU, RAM,
-  Temperatur, Uptime und Speicherplatz.
+- **dashboard-api**: Flask-/Gunicorn-API auf Port 8080 für Systemdaten wie CPU,
+  RAM, Temperatur, Uptime und Speicherplatz.
 
 Zusätzlich läuft ein eigener Monitoring-Stack (Prometheus, Grafana,
 Alertmanager und Exporter), siehe [Monitoring](#monitoring).
