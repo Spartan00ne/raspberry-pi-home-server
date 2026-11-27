@@ -68,6 +68,12 @@ jobs:
           if ($findings.Count) { exit 1 }
           'Keine Befunde.'
 
+      # Nur die Zeilenlänge der Doku (Regeln in .markdownlint-cli2.jsonc).
+      - name: markdownlint (Doku)
+        uses: DavidAnson/markdownlint-cli2-action@v25.0.0
+        with:
+          globs: "**/*.md"
+
       - name: Ruff (Python-API)
         run: pipx run ruff==0.17.5 check --no-cache api
 

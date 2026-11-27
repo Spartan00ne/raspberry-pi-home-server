@@ -84,8 +84,9 @@ cAdvisor aus, kommen keine Fehlmeldungen für alle Container.
 
 ## Sicherheit
 
-- **Keine Secrets im Repo.** Telegram-Token, Chat-ID und Grafana-Passwort liegen in
-  `secrets/` (per `.gitignore` ausgeschlossen) und werden als Docker-Secrets eingebunden.
+- **Keine Secrets im Repo.** Telegram-Token, Chat-ID und Grafana-Passwort
+  liegen in `secrets/` (per `.gitignore` ausgeschlossen) und werden als
+  Docker-Secrets eingebunden.
 - **Keine offenen Ports.** Prometheus, Alertmanager und Grafana lauschen nur auf
   `127.0.0.1`. Port 9100 (node-exporter) erlaubt ufw nur aus dem Monitoring-Netz
   `172.30.0.0/24`.

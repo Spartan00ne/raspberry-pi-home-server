@@ -1,0 +1,23 @@
+// markdownlint (CI-Schritt "markdownlint"): prüft nur die Zeilenlänge der Doku.
+// Fließtext wird bei 80 Zeichen umbrochen, Tabellen und Codeblöcke nicht.
+{
+  "config": {
+    "default": false,
+    "MD013": {
+      "line_length": 80,
+      "tables": false,
+      "code_blocks": false
+    }
+  },
+  "globs": ["**/*.md"],
+  "ignores": [
+    // Glossar und ADRs: ein Absatz pro Zeile (Skill domain-modeling).
+    "GLOSSARY.md",
+    "docs/adr/**",
+    // Nur lokal, nicht im Repo (.git/info/exclude).
+    "CLAUDE.md",
+    "CODING_STANDARDS.md",
+    "docs/agents/**",
+    ".claude/**"
+  ]
+}
