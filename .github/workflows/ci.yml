@@ -167,11 +167,37 @@ jobs:
           done < <(git ls-files 'inventory/**vault*.yml')
           [ "$found" = 1 ] || { echo "::error::Keine Vault-Datei gefunden"; exit 1; }
 
+      # Eigenes venv statt pipx: Das Runner-Image bringt unter pipx schon ein
+      # Ansible mit, und pipx install lässt eine vorhandene Installation stehen,
+      # statt die gepinnte Version zu installieren. venv und Collections kommen
+      # aus dem Cache. Das venv verweist auf das Python des Runner-Images, daher
+      # gehört dessen Version (ImageVersion, nur als Shell-Variable da) in den
+      # Schlüssel, neben den gepinnten Versionen.
+      - name: Cache-Schlüssel
+        id: ansible-key
+        run: echo "image=${ImageOS}-${ImageVersion}" >> "$GITHUB_OUTPUT"
+
+      - name: Ansible aus dem Cache holen
+        id: ansible-cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/ansible-venv
+            ~/.ansible/collections
+          key: ansible-${{ runner.arch }}-${{ steps.ansible-key.outputs.image }}-${{ env.ANSIBLE_CORE_VERSION }}-${{ env.ANSIBLE_LINT_VERSION }}-${{ hashFiles('ansible/requirements.yml') }}
+
       - name: Ansible installieren (gepinnt)
+        env:
+          CACHE_HIT: ${{ steps.ansible-cache.outputs.cache-hit }}
         run: |
-          pipx install "ansible-core==${ANSIBLE_CORE_VERSION}"
-          pipx inject --include-apps ansible-core "ansible-lint==${ANSIBLE_LINT_VERSION}"
-          ansible-galaxy collection install -r requirements.yml
+          if [ "$CACHE_HIT" != true ]; then
+            python3 -m venv ~/ansible-venv
+            ~/ansible-venv/bin/pip install --quiet \
+              "ansible-core==${ANSIBLE_CORE_VERSION}" "ansible-lint==${ANSIBLE_LINT_VERSION}"
+            ~/ansible-venv/bin/ansible-galaxy collection install -r requirements.yml
+          fi
+          echo "$HOME/ansible-venv/bin" >> "$GITHUB_PATH"
+          ~/ansible-venv/bin/ansible --version
           # Die CI bekommt das echte Vault-Passwort nie; das Test-Inventar braucht keins.
           echo "ci-has-no-vault-password" > "$RUNNER_TEMP/vault-pass"
           echo "ANSIBLE_VAULT_PASSWORD_FILE=$RUNNER_TEMP/vault-pass" >> "$GITHUB_ENV"
