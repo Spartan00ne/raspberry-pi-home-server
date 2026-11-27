@@ -79,7 +79,8 @@ Der Abschnitt `tests` wird bei jedem Prüfen und Einspielen ausgewertet. Ein
 Fehlschlag verhindert das Einspielen. Getestet wird, dass `tag:cloud` auf
 `tag:backup-target` nur Port 8000 erreicht (und nicht 22, 445, 3389, 5985 oder
 8001) und dass `tag:backup-target` nichts erreicht. Tests für eigene Geräte
-und geteilte Benutzer bräuchten eine E-Mail-Adresse als Quelle. Die gehört nicht ins öffentliche Repo.
+und geteilte Benutzer bräuchten eine E-Mail-Adresse als Quelle. Die gehört
+nicht ins öffentliche Repo.
 
 ### GitOps
 

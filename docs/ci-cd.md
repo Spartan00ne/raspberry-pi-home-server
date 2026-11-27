@@ -39,7 +39,7 @@ Läuft bei jedem Push, jedem Pull Request und manuell.
 
 | Job | Prüft |
 |---|---|
-| **Lint** | Workflows samt `run:`-Blöcken (actionlint), Shell-Skripte (ShellCheck), Python-API (Ruff, Regeln in [`api/ruff.toml`](../api/ruff.toml)), Dockerfile (Hadolint), PowerShell-Skript des [Backup-Ziels](backup-ziel.md) (PSScriptAnalyzer, alle Regeln), Grafana-Dashboards (gültiges JSON) |
+| **Lint** | Workflows samt `run:`-Blöcken (actionlint), Shell-Skripte (ShellCheck), Python-API (Ruff, Regeln in [`api/ruff.toml`](../api/ruff.toml)), Dockerfile (Hadolint), PowerShell-Skript des [Backup-Ziels](backup-ziel.md) (PSScriptAnalyzer, alle Regeln), Grafana-Dashboards (gültiges JSON), Zeilenlänge der Doku (markdownlint, Regeln in [`.markdownlint-cli2.jsonc`](../.markdownlint-cli2.jsonc)) |
 | **Konfiguration prüfen** | beide Compose-Dateien, Prometheus-Konfiguration und Regeln (`promtool check`), [Unit-Tests der Alarme](../monitoring/prometheus/tests/alerts_test.yml) (`promtool test rules`), Alertmanager (`amtool`), Blackbox-Exporter, nginx (`nginx -t`) |
 | **Image bauen (arm64)** | baut die Dashboard-API auf einem nativen ARM64-Runner, startet sie und fragt `/api/health` und `/api/status` ab. Nur auf `main`: Push nach GHCR als `sha-<commit>` und `main`. |
 
